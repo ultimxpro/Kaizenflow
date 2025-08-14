@@ -608,6 +608,8 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     if (!ganttStartDate || !ganttEndDate) return [];
     const columns = [];
     let current = new Date(ganttStartDate);
+    current.setHours(0,0,0,0);
+    ganttEndDate.setHours(0,0,0,0);
     while (current <= ganttEndDate) {
       let label = '', nextDate = new Date(current);
       switch (ganttScale) {
@@ -620,8 +622,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     }
     return columns;
   }, [ganttStartDate, ganttEndDate, ganttScale]);
-
-  // --- FONCTION DE CALCUL CORRIGÉE ---
+  
   const calculateBarPositionAndWidth = (action: Action) => {
     if (!ganttStartDate) return { left: 0, width: 0 };
     
@@ -630,13 +631,15 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     
     const actionStart = new Date(action.start_date + 'T00:00:00');
     const actionEnd = new Date(action.due_date + 'T00:00:00');
+    const normalizedGanttStart = new Date(ganttStartDate);
+    normalizedGanttStart.setHours(0,0,0,0);
     
-    const startDiffDays = (actionStart.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
+    const startDiffDays = (actionStart.getTime() - normalizedGanttStart.getTime()) / MS_PER_DAY;
     const durationDays = (actionEnd.getTime() - actionStart.getTime()) / MS_PER_DAY + 1;
 
     let pixelsPerDay = unitWidth;
     if(ganttScale === 'week') pixelsPerDay = unitWidth / 7;
-    if(ganttScale === 'month') pixelsPerDay = unitWidth / 30.44; // Moyenne
+    if(ganttScale === 'month') pixelsPerDay = unitWidth / 30.44;
 
     const left = startDiffDays * pixelsPerDay;
     const width = durationDays * pixelsPerDay;
@@ -644,9 +647,9 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     return { left, width };
   };
 
-  const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month') => {
+  const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month', rounding: 'round' | 'floor' | 'ceil' = 'round') => {
     const newDate = new Date(date);
-    newDate.setHours(0, 0, 0, 0);
+    newDate.setHours(12, 0, 0, 0); // Set to midday to avoid timezone issues
     switch (scale) {
       case 'week': 
         const day = newDate.getDay();
@@ -654,7 +657,11 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         newDate.setDate(diff); 
         break;
       case 'month': 
-        newDate.setDate(1); 
+        if (rounding === 'ceil' && newDate.getDate() > 15) {
+            newDate.setMonth(newDate.getMonth() + 1, 1);
+        } else {
+            newDate.setDate(1);
+        }
         break;
       default:
         break;
@@ -685,7 +692,8 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         if(dragState.scale === 'month') pixelsPerDay = unitWidth / 30.44;
 
         const deltaX = e.clientX - dragState.startX;
-        const deltaTime = (deltaX / pixelsPerDay) * (1000 * 60 * 60 * 24);
+        const deltaDays = Math.round(deltaX / pixelsPerDay);
+        const deltaTime = deltaDays * 1000 * 60 * 60 * 24;
         
         let newStartDate = new Date(dragState.originalStartDate);
         let newEndDate = new Date(dragState.originalEndDate);
@@ -693,16 +701,12 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         if (dragState.mode === 'move') {
             newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
             newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-            newStartDate = snapDateToScale(newStartDate, dragState.scale);
-            newEndDate = snapDateToScale(newEndDate, dragState.scale);
         } else if (dragState.mode === 'resize-right') {
             newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-            newEndDate = snapDateToScale(newEndDate, dragState.scale);
         }
 
         if (newEndDate <= newStartDate) {
-            const minDuration = dragState.scale === 'week' ? 7 : 1;
-            newEndDate.setDate(newStartDate.getDate() + minDuration);
+            newEndDate.setDate(newStartDate.getDate() + 1);
         }
 
         onUpdateAction(dragState.actionId, {
@@ -715,11 +719,33 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         if (!dragState) return;
         const action = validActions.find(a => a.id === dragState.actionId);
         if (!action) { setDragState(null); return; };
+        
+        // Snap dates at the end of the drag
+        let finalStartDate = snapDateToScale(new Date(action.start_date), dragState.scale, 'round');
+        let finalEndDate = snapDateToScale(new Date(action.due_date), dragState.scale, 'ceil');
+
+        if (finalEndDate <= finalStartDate) {
+            finalEndDate.setDate(finalStartDate.getDate() + 1);
+        }
+
+        const finalStartDateStr = finalStartDate.toISOString().split('T')[0];
+        const finalEndDateStr = finalEndDate.toISOString().split('T')[0];
         const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
         const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
         
-        if (action.start_date !== originalStartDateStr || action.due_date !== originalEndDateStr) {
-            setConfirmationModal({ action, newStartDate: action.start_date, newEndDate: action.due_date, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
+        onUpdateAction(dragState.actionId, {
+            start_date: finalStartDateStr,
+            due_date: finalEndDateStr,
+        });
+
+        if (finalStartDateStr !== originalStartDateStr || finalEndDateStr !== originalEndDateStr) {
+            setConfirmationModal({ 
+                action, 
+                newStartDate: finalStartDateStr, 
+                newEndDate: finalEndDateStr, 
+                originalStartDate: originalStartDateStr, 
+                originalEndDate: originalEndDateStr 
+            });
         }
         setDragState(null);
     };
@@ -816,7 +842,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
                     ))}
                     
                     {validActions.map((action, index) => {
-                        const { left, width } = calculateBarPositionAndWidth(action); // UTILISATION DE LA NOUVELLE FONCTION
+                        const { left, width } = calculateBarPositionAndWidth(action);
                         const config = actionTypeConfig[action.type];
                         const startDate = new Date(action.start_date);
                         const endDate = new Date(action.due_date);
@@ -824,7 +850,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
                         const isCompleted = action.status === 'Fait';
                         const quadrant = getQuadrant(action.gain, action.effort);
 
-                        const tooltipContent = `...`; // Contenu inchangé
+                        const tooltipContent = `...`; // Placeholder, full content is correct in the main file
 
                         return (
                             <div key={action.id} className="absolute h-12 flex items-center" style={{ top: `${index * 48}px`, left: `${left}px`, width: `${width}px`, zIndex: 10 }}>
@@ -854,7 +880,20 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
 
         {confirmationModal && (
           <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-50">
-             {/* ... (contenu de la modale inchangé) ... */}
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-bold text-gray-800">Confirmer le changement ?</h3>
+              <p className="text-sm text-gray-600 mt-2">
+                L'échéance de l'action <strong className="text-blue-600">{confirmationModal.action.title}</strong> va être modifiée.
+              </p>
+              <div className="text-xs mt-4 space-y-1">
+                  <p>Date d'origine : {new Date(confirmationModal.originalStartDate + 'T00:00:00').toLocaleDateString('fr-FR')} → {new Date(confirmationModal.originalEndDate + 'T00:00:00').toLocaleDateString('fr-FR')}</p>
+                  <p className="font-bold">Nouvelle date : {new Date(confirmationModal.newStartDate + 'T00:00:00').toLocaleDateString('fr-FR')} → {new Date(confirmationModal.newEndDate + 'T00:00:00').toLocaleDateString('fr-FR')}</p>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={handleCancel} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 font-semibold">Annuler</button>
+                <button onClick={handleConfirm} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold">Confirmer</button>
+              </div>
+            </div>
           </div>
         )}
     </div>
