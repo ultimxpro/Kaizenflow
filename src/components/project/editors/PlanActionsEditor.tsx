@@ -320,7 +320,7 @@ export const PlanActionsEditor = () => {
   );
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-white text-gray-800 w-full h-full rounded-lg shadow-md">
+    <div className="bg-white text-gray-800 w-full h-full p-4 sm:p-6 md:p-8">
       <header className="flex flex-wrap justify-between items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold text-gray-900">Plan d'Actions Kaizen</h1>
         <div className="flex items-center gap-4">
