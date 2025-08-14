@@ -556,6 +556,8 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
 
 // Remplacez votre GanttView par cette version finale et complète
 
+// Remplacez votre GanttView par cette version finale et complète
+
 const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: Action[], users: User[], onUpdateAction: (id: string, updates: Partial<Action>) => void, onCardClick: (action: Action) => void }) => {
   const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week');
   const ganttRef = useRef<HTMLDivElement>(null);
