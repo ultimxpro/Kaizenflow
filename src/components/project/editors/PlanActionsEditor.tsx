@@ -609,6 +609,16 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
     );
 };
 
+// Remplace complètement l'ancien GanttView dans src/components/project/editors/PlanActionsEditor.tsx
+
+// Remplacez votre GanttView par celui-ci
+
+// Remplacez votre GanttView par cette version finale avec aimantation
+
+// Remplacez votre GanttView par cette version finale et complète
+
+// Remplacez votre GanttView par cette version finale et complète
+
 const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, setGanttScale }: { 
     actions: Action[], 
     users: User[], 
@@ -765,7 +775,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     const handleMouseUp = () => {
         if (!dragState) return;
         const action = validActions.find(a => a.id === dragState.actionId);
-        if (!action) { setDragState(null); return; };
+        if (!action) { setDragState(null); return; }
         const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
         const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
         
@@ -857,7 +867,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
                                 </div>
                                 <div className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 w-fit ${quadrant.color} ${quadrant.textColor}`}>{quadrant.name}</div>
                             </div>
-                         )
+                         );
                     })}
                 </div>
                 
@@ -908,7 +918,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
                                     </div>
                                 </Tooltip>
                             </div>
-                        )
+                        );
                     })}
                 </div>
             </div>
