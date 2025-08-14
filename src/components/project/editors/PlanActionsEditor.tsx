@@ -348,33 +348,154 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
 
     const handleDrop = (e: React.DragEvent, targetStatus: ActionStatus) => {
         e.preventDefault();
-        (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-100', 'ring-2', 'ring-blue-300');
+        (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'ring-2', 'ring-blue-400', 'scale-105');
         if (!draggedItem || draggedItem.status === targetStatus) return;
         setActions(actions.map(act => act.id === draggedItem.id ? { ...act, status: targetStatus } : act), { ...draggedItem, status: targetStatus });
     };
 
+    const selectedUserData = users.find(u => u.id === selectedUser);
+
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-blue-50">
+            {/* Header avec sélecteur utilisateur amélioré */}
             <div className="mb-6 flex-shrink-0 flex justify-center">
-                <div className="bg-white p-2 rounded-lg shadow-md border flex items-center gap-4">
-                    <label htmlFor="user-select" className="font-semibold text-gray-700">Voir le kanban de :</label>
-                    <select id="user-select" onChange={(e) => setSelectedUser(e.target.value)} value={selectedUser} className="p-2 border bg-white border-gray-300 rounded shadow-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
+                <div className="bg-white p-4 rounded-xl shadow-lg border border-blue-100 flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {selectedUserData && (
+                            <img 
+                                src={selectedUserData.avatarUrl || `https://i.pravatar.cc/150?u=${selectedUserData.id}`} 
+                                alt={selectedUserData.nom} 
+                                className="w-10 h-10 rounded-full border-2 border-blue-200"
+                            />
+                        )}
+                        <div>
+                            <label htmlFor="user-select" className="font-semibold text-gray-700 block">Kanban personnel</label>
+                            <p className="text-xs text-gray-500">Sélectionnez un membre de l'équipe</p>
+                        </div>
+                    </div>
+                    <select 
+                        id="user-select" 
+                        onChange={(e) => setSelectedUser(e.target.value)} 
+                        value={selectedUser} 
+                        className="p-3 border bg-white border-gray-300 rounded-lg shadow-sm text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
+                    >
                         {users.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
                     </select>
                 </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1" onDragEnd={() => setDraggedItem(null)}>
+            
+            {/* Statistiques rapides */}
+            <div className="mb-4 flex-shrink-0 flex justify-center gap-4">
+                <div className="bg-orange-100 border border-orange-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-orange-800">{columns['À faire'].length} à faire</span>
+                </div>
+                <div className="bg-green-100 border border-green-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-green-800">{columns['Fait'].length} terminées</span>
+                </div>
+            </div>
+
+            {/* Colonnes Kanban */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
                 {(Object.entries(columns) as [ActionStatus, Action[]][]).map(([status, items]) => (
-                    <div key={status} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg transition-colors h-full overflow-hidden"
+                    <div 
+                        key={status} 
+                        className={`flex flex-col rounded-xl transition-all duration-300 h-full overflow-hidden shadow-lg ${
+                            status === 'À faire' 
+                                ? 'bg-gradient-to-b from-orange-50 to-orange-100 border-2 border-orange-200' 
+                                : 'bg-gradient-to-b from-green-50 to-green-100 border-2 border-green-200'
+                        }`}
                          onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)}
-                         onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-100', 'ring-2', 'ring-blue-300')}
-                         onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-100', 'ring-2', 'ring-blue-300')}>
-                        <h2 className={`font-bold p-4 border-b ${status === 'À faire' ? 'text-orange-600' : 'text-green-600'}`}>
-                            {status} <span className="text-sm font-normal text-gray-500 bg-gray-200 rounded-full px-2 py-0.5">{items.length}</span>
-                        </h2>
-                        <div className="overflow-y-auto flex-1 p-4">
-                            {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, action) => setDraggedItem(action)} onClick={onCardClick} />)}
+                        onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-50', 'ring-2', 'ring-blue-400', 'scale-105')}
+                        onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'ring-2', 'ring-blue-400', 'scale-105')}
+                    >
+                        {/* Header de colonne */}
+                        <div className={`p-4 border-b-2 flex-shrink-0 ${
+                            status === 'À faire' 
+                                ? 'border-orange-300 bg-orange-200' 
+                                : 'border-green-300 bg-green-200'
+                        }`}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                        status === 'À faire' ? 'bg-orange-500' : 'bg-green-500'
+                                    }`}>
+                                        {status === 'À faire' ? '⏳' : '✅'}
+                                    </div>
+                                    <h2 className={`font-bold text-lg ${
+                                        status === 'À faire' ? 'text-orange-800' : 'text-green-800'
+                                    }`}>
+                                        {status}
+                                    </h2>
+                                </div>
+                                <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                                    status === 'À faire' 
+                                        ? 'bg-orange-300 text-orange-800' 
+                                        : 'bg-green-300 text-green-800'
+                                }`}>
+                                    {items.length}
+                                </span>
+                            </div>
                         </div>
+                        
+                        {/* Zone de contenu avec défilement */}
+                        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                            {items.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                                        status === 'À faire' ? 'bg-orange-200' : 'bg-green-200'
+                                    }`}>
+                                        {status === 'À faire' ? '📝' : '🎉'}
+                                    </div>
+                                    <p className={`text-sm font-medium ${
+                                        status === 'À faire' ? 'text-orange-600' : 'text-green-600'
+                                    }`}>
+                                        {status === 'À faire' ? 'Aucune tâche en attente' : 'Aucune tâche terminée'}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {status === 'À faire' ? 'Les nouvelles tâches apparaîtront ici' : 'Glissez les tâches terminées ici'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {items.map(item => (
+                                        <ActionCard 
+                                            key={item.id} 
+                                            action={item} 
+                                            users={users} 
+                                            onDragStart={(e, action) => setDraggedItem(action)} 
+                                            onClick={onCardClick} 
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+            
+            {/* Footer avec progression */}
+            <div className="mt-4 flex-shrink-0 bg-white rounded-xl p-4 shadow-lg border border-gray-200">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Progression de {selectedUserData?.nom}</span>
+                    <span className="text-sm font-bold text-gray-900">
+                        {filteredActions.length > 0 ? Math.round((columns['Fait'].length / filteredActions.length) * 100) : 0}%
+                    </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                        className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-500"
+                        style={{ 
+                            width: `${filteredActions.length > 0 ? (columns['Fait'].length / filteredActions.length) * 100 : 0}%` 
+                        }}
+                        </h2>
+                    ></div>
+                </div>
+            </div>
+        </div>
+    );
+};
                     </div>
                 ))}
             </div>
