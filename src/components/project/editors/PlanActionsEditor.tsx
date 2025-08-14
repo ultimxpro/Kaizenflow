@@ -1,7 +1,4 @@
-// PlanActionsEditor.tsx
-
-// --- DÉPENDANCES ---
-// Assurez-vous que React, ReactDOM, TailwindCSS et Font Awesome sont configurés dans votre projet.
+// src/components/project/editors/PlanActionsEditor.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
 
@@ -28,7 +25,7 @@ interface Action {
 }
 
 // --- CONFIGURATION & DONNÉES ---
-// Ces données seront probablement passées en props dans votre application réelle.
+// Ces données seront à remplacer par les props ou le state de votre application.
 const mockUsers: User[] = [
     { id: 'user-1', name: 'Claire Martin' },
     { id: 'user-2', name: 'Jean Dupont' },
@@ -89,7 +86,7 @@ const ActionCard = ({ action, onDragStart, onClick }: { action: Action, onDragSt
       draggable="true"
       onDragStart={(e) => onDragStart(e, action)}
       onClick={() => onClick(action)}
-      className={`action-card bg-white border border-gray-200 rounded-lg shadow-sm mb-3 border-l-4 ${config.color} p-3 hover:shadow-md hover:border-gray-300`}
+      className={`action-card bg-white border border-gray-200 rounded-lg shadow-sm mb-3 border-l-4 ${config.color} p-3 hover:shadow-md hover:border-gray-300 cursor-pointer`}
     >
       <div className="flex justify-between items-start mb-2">
         <span className={`flex items-center text-xs font-semibold ${config.textColor}`}>
@@ -336,7 +333,7 @@ export const PlanActionsEditor = () => {
         </div>
       </header>
       
-      <main>
+      <main className="h-full">
         {loading ? <div className="text-center p-8">Chargement...</div> : (
             <>
                 {view === 'home' && <HomeView actions={actions} onCardClick={openModal} />}
