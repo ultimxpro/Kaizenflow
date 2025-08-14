@@ -1,18 +1,16 @@
 // src/components/project/editors/PlanActionsEditor.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { A3Module } from '../../../types/database';
-import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check, Trash2, UserPlus } from 'lucide-react';
+import { A3Module, User } from '../../../types/database';
+import { useDatabase } from '../../../contexts/DatabaseContext';
+import { useAuth } from '../../../contexts/AuthContext';
+import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check, UserPlus } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 type ActionType = 'simple' | 'securisation' | 'poka-yoke';
 type ActionStatus = 'À faire' | 'En cours' | 'Terminé';
 
-interface User {
-    id: string;
-    name: string;
-    avatarUrl?: string;
-}
+// Note: The 'User' interface is now imported from 'database.ts'
 
 interface Action {
     id: string;
@@ -57,7 +55,7 @@ const DateIndicator = ({ dueDate }: { dueDate: string }) => {
     now.setHours(0, 0, 0, 0);
     const due = new Date(dueDate);
     const diffDays = Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     let color = 'text-green-600';
     let text = "À l'heure";
     if (diffDays < 0) { color = 'text-red-600'; text = `En retard de ${Math.abs(diffDays)}j`; }
@@ -78,9 +76,9 @@ const AssigneeAvatars = ({ assignee_ids, leader_id, users }) => (
       if (!user) return null;
       const isLeader = id === leader_id;
       return (
-        <Tooltip key={id} content={`${user.name}${isLeader ? ' (Leader)' : ''}`}>
+        <Tooltip key={id} content={`${user.nom}${isLeader ? ' (Leader)' : ''}`}>
           <div className="relative">
-            <img src={user.avatarUrl} alt={user.name} className={`w-6 h-6 rounded-full border-2 ${isLeader ? 'border-yellow-400' : 'border-white'}`} />
+            <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className={`w-6 h-6 rounded-full border-2 ${isLeader ? 'border-yellow-400' : 'border-white'}`} />
             {isLeader && <Crown className="absolute -top-1 -right-1 w-3 h-3 text-yellow-500 bg-white rounded-full p-0.5" />}
           </div>
         </Tooltip>
@@ -111,12 +109,19 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
 };
 
 // --- FORMULAIRE D'ACTION (Refonte complète du style) ---
-const ActionModal = ({ isOpen, onClose, onSave, action, users, setUsers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, users: User[], setUsers: (users: User[]) => void }) => {
+const ActionModal = ({ isOpen, onClose, onSave, action, allUsers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, allUsers: User[]}) => {
     if (!isOpen) return null;
     
     const [formData, setFormData] = useState<Partial<Action>>(action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: new Date().toISOString().split('T')[0], start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 });
     const [isAddingUser, setIsAddingUser] = useState(false);
     const [newUserName, setNewUserName] = useState('');
+
+    // For now, new users are not persisted in the DB, so we don't need this part.
+    // In a real app, you would call a function from your context like `createUser`.
+    const handleAddNewUser = () => {
+        alert("La création de nouveaux utilisateurs n'est pas encore implémentée.");
+        setIsAddingUser(false);
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -136,18 +141,6 @@ const ActionModal = ({ isOpen, onClose, onSave, action, users, setUsers }: { isO
       if((formData.assignee_ids || []).includes(userId)) {
         setFormData(prev => ({...prev, leader_id: userId}));
       }
-    };
-
-    const handleAddNewUser = () => {
-        if (newUserName.trim() === '') return;
-        const newUser: User = {
-            id: `user-${Date.now()}`,
-            name: newUserName.trim(),
-            avatarUrl: `https://i.pravatar.cc/150?u=user-${Date.now()}`
-        };
-        setUsers([...users, newUser]);
-        setNewUserName('');
-        setIsAddingUser(false);
     };
 
     const getQuadrant = (gain: number, effort: number) => {
@@ -181,16 +174,16 @@ const ActionModal = ({ isOpen, onClose, onSave, action, users, setUsers }: { isO
 
                     <PDCASection title="Équipe" icon={<Users size={20} />}>
                         <div className="flex flex-wrap gap-4">
-                            {users.map(user => {
+                            {allUsers.map(user => {
                               const isSelected = (formData.assignee_ids || []).includes(user.id);
                               const isLeader = formData.leader_id === user.id;
                               return (
                                 <div key={user.id} className="text-center">
                                   <div onClick={() => toggleAssignee(user.id)} className={`relative p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'bg-blue-200 ring-2 ring-blue-400' : 'hover:bg-gray-200'}`}>
-                                    <img src={user.avatarUrl} alt={user.name} className="w-14 h-14 rounded-full" />
+                                    <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
                                     {isLeader && <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500 bg-white rounded-full p-0.5" />}
                                   </div>
-                                  <span className="text-xs mt-1 font-semibold text-gray-700">{user.name}</span>
+                                  <span className="text-xs mt-1 font-semibold text-gray-700">{user.nom}</span>
                                   {isSelected && (
                                     <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className={`mt-1 text-xs px-2 py-0.5 rounded-full ${isLeader ? 'bg-yellow-400 text-black font-bold' : 'bg-gray-200 hover:bg-gray-300'}`}>
                                       {isLeader ? 'Leader' : 'Promouvoir'}
@@ -312,7 +305,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }) => {
         <div className="flex flex-col h-full">
             <div className="mb-4 flex-shrink-0">
                 <select onChange={(e) => setSelectedUser(e.target.value)} value={selectedUser} className="p-2 border bg-white border-gray-300 rounded shadow-sm text-gray-800">
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    {users.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
                 </select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
@@ -411,7 +404,7 @@ const GanttView = ({ actions, users, onCardClick }) => {
                         const width = (duration / totalDays) * 100;
                         const config = actionTypeConfig[action.type];
                         const leader = users.find(u => u.id === action.leader_id);
-                        const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString()} au ${new Date(action.due_date).toLocaleDateString()}<br>Leader: ${leader?.name || 'N/A'}`;
+                        const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString()} au ${new Date(action.due_date).toLocaleDateString()}<br>Leader: ${leader?.nom || 'N/A'}`;
                         
                         return (
                             <div key={action.id} className="w-full h-10 flex items-center">
@@ -432,20 +425,27 @@ const GanttView = ({ actions, users, onCardClick }) => {
 
 // --- COMPOSANT PRINCIPAL ---
 export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, onClose }) => {
+  const { users: allUsers } = useAuth(); // Getting all users from AuthContext
+  const { updateA3Module } = useDatabase();
+    
   const [view, setView] = useState('home');
   const [actions, setActions] = useState<Action[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [editingAction, setEditingAction] = useState<Action | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
-    // Simule le chargement des données
-    setUsers(mockUsers);
-    setActions(mockData);
+    // Load actions from the module's content
+    const savedActions = module.content?.actions || [];
+    setActions(savedActions);
     setLoading(false);
   }, [module]);
+  
+  const saveActionsToDb = (updatedActions: Action[]) => {
+      setActions(updatedActions);
+      updateA3Module(module.id, { content: { ...module.content, actions: updatedActions } });
+  }
 
   const handleSaveAction = (actionData: Action) => {
       let updatedActions;
@@ -454,13 +454,13 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
       } else {
           updatedActions = [...actions, { ...actionData, id: Date.now().toString() }];
       }
-      setActions(updatedActions);
+      saveActionsToDb(updatedActions);
       setIsActionModalOpen(false); 
       setEditingAction(null);
   };
   
   const handleSetActions = (updatedActions: Action[], changedItem: Action) => {
-      setActions(updatedActions);
+      saveActionsToDb(updatedActions);
   };
   
   const openActionModal = (action: Action | null = null) => { 
@@ -511,10 +511,10 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
             <main className="flex-1 overflow-y-auto min-h-0">
                 {loading ? <div className="text-center p-8">Chargement...</div> : (
                     <>
-                        {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={users} onCardClick={openActionModal} />}
-                        {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={users} onCardClick={openActionModal} />}
-                        {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={users} onCardClick={openActionModal} />}
-                        {view === 'gantt' && <GanttView actions={actions} users={users} onCardClick={openActionModal} />}
+                        {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={allUsers} onCardClick={openActionModal} />}
+                        {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={allUsers} onCardClick={openActionModal} />}
+                        {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={allUsers} onCardClick={openActionModal} />}
+                        {view === 'gantt' && <GanttView actions={actions} users={allUsers} onCardClick={openActionModal} />}
                     </>
                 )}
             </main>
@@ -525,8 +525,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
           onClose={() => { setIsActionModalOpen(false); setEditingAction(null); }}
           onSave={handleSaveAction}
           action={editingAction}
-          users={users}
-          setUsers={setUsers}
+          allUsers={allUsers}
         />
 
         {showHelp && (
