@@ -550,6 +550,19 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
 
 const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: User[], onCardClick: (action: Action) => void }) => {
     const [scale, setScale] = useState<'day' | 'week' | 'month'>('day');
+    const [dragState, setDragState] = useState<{
+        actionId: string | null;
+        mode: 'move' | 'resize-start' | 'resize-end' | null;
+        startX: number;
+        originalStart: Date;
+        originalEnd: Date;
+    }>({
+        actionId: null,
+        mode: null,
+        startX: 0,
+        originalStart: new Date(),
+        originalEnd: new Date()
+    });
     
     if (actions.length === 0) {
         return (
@@ -595,6 +608,23 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
         startDate.setDate(startDate.getDate() - 3); // 3 jours avant
         endDate.setDate(endDate.getDate() + 3); // 3 jours après
     }
+
+    // Fonction pour obtenir le numéro de semaine française (ISO 8601)
+    const getWeekNumber = (date: Date): number => {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    };
+
+    // Fonction pour obtenir le lundi d'une semaine donnée
+    const getMondayOfWeek = (year: number, week: number): Date => {
+        const jan4 = new Date(year, 0, 4);
+        const jan4Day = jan4.getDay() || 7;
+        const mondayOfWeek1 = new Date(jan4.getTime() - (jan4Day - 1) * 86400000);
+        return new Date(mondayOfWeek1.getTime() + (week - 1) * 7 * 86400000);
+    };
 
     // Calcul des unités et largeur
     const getTimeUnits = () => {
@@ -668,6 +698,78 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
         }
     };
 
+    // Fonctions de drag & drop
+    const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-start' | 'resize-end') => {
+        e.preventDefault();
+        const action = actions.find(a => a.id === actionId);
+        if (!action) return;
+
+        setDragState({
+            actionId,
+            mode,
+            startX: e.clientX,
+            originalStart: new Date(action.start_date),
+            originalEnd: new Date(action.due_date)
+        });
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!dragState.actionId || !dragState.mode) return;
+
+        const deltaX = e.clientX - dragState.startX;
+        const unitWidth = scale === 'day' ? 40 : scale === 'week' ? 80 : 120;
+        
+        let unitsToMove = Math.round(deltaX / unitWidth);
+        let newStartDate = new Date(dragState.originalStart);
+        let newEndDate = new Date(dragState.originalEnd);
+
+        switch (scale) {
+            case 'day':
+                if (dragState.mode === 'move') {
+                    newStartDate.setDate(newStartDate.getDate() + unitsToMove);
+                    newEndDate.setDate(newEndDate.getDate() + unitsToMove);
+                } else if (dragState.mode === 'resize-end') {
+                    newEndDate.setDate(newEndDate.getDate() + unitsToMove);
+                } else if (dragState.mode === 'resize-start') {
+                    newStartDate.setDate(newStartDate.getDate() + unitsToMove);
+                }
+                break;
+            case 'week':
+                if (dragState.mode === 'move') {
+                    newStartDate.setDate(newStartDate.getDate() + (unitsToMove * 7));
+                    newEndDate.setDate(newEndDate.getDate() + (unitsToMove * 7));
+                } else if (dragState.mode === 'resize-end') {
+                    newEndDate.setDate(newEndDate.getDate() + (unitsToMove * 7));
+                } else if (dragState.mode === 'resize-start') {
+                    newStartDate.setDate(newStartDate.getDate() + (unitsToMove * 7));
+                }
+                break;
+            case 'month':
+                if (dragState.mode === 'move') {
+                    newStartDate.setMonth(newStartDate.getMonth() + unitsToMove);
+                    newEndDate.setMonth(newEndDate.getMonth() + unitsToMove);
+                } else if (dragState.mode === 'resize-end') {
+                    newEndDate.setMonth(newEndDate.getMonth() + unitsToMove);
+                } else if (dragState.mode === 'resize-start') {
+                    newStartDate.setMonth(newStartDate.getMonth() + unitsToMove);
+                }
+                break;
+        }
+
+        // Validation : la date de fin doit être après la date de début
+        if (newEndDate <= newStartDate) return;
+    };
+
+    const handleMouseUp = () => {
+        setDragState({
+            actionId: null,
+            mode: null,
+            startX: 0,
+            originalStart: new Date(),
+            originalEnd: new Date()
+        });
+    };
+
     const today = new Date();
     const todayPosition = (() => {
         if (scale === 'day') {
@@ -713,7 +815,10 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
 
             {/* Zone de défilement horizontal */}
             <div className="flex-1 overflow-x-auto overflow-y-hidden">
-                <div className="relative" style={{ width: `${totalWidth}px`, minHeight: '100%' }}>
+                <div className="relative" style={{ width: `${totalWidth}px`, minHeight: '100%' }}
+                     onMouseMove={handleMouseMove}
+                     onMouseUp={handleMouseUp}
+                     onMouseLeave={handleMouseUp}>
                     {/* Timeline Header */}
                     <div className="sticky top-0 bg-white z-20 border-b-2 border-gray-200">
                         <div className="flex h-16">
@@ -784,6 +889,8 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                                 </div>
                             `;
 
+                            const isBeingDragged = dragState.actionId === action.id;
+
                             return (
                                 <div
                                     key={action.id}
@@ -798,9 +905,20 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                                     <Tooltip content={tooltipContent}>
                                         <div
                                             onClick={() => onCardClick(action)}
-                                            className={`w-full h-full ${config.barBg} rounded-lg cursor-pointer flex items-center px-3 text-white text-sm font-medium shadow-sm hover:shadow-md transition-all hover:scale-105 border-l-4`}
+                                            className={`w-full h-full ${config.barBg} rounded-lg cursor-pointer flex items-center px-3 text-white text-sm font-medium shadow-sm hover:shadow-md transition-all hover:scale-105 border-l-4 ${isBeingDragged ? 'opacity-75 scale-105' : ''}`}
                                             style={{ borderLeftColor: config.color.replace('border-', '').replace('-500', '') }}
+                                            onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
+                                            title={`${action.title} - ${action.start_date} (${Math.ceil((new Date(action.due_date).getTime() - new Date(action.start_date).getTime()) / (1000 * 60 * 60 * 24))} jours)`}
                                         >
+                                            {/* Poignée de redimensionnement gauche */}
+                                            <div
+                                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMouseDown(e, action.id, 'resize-start');
+                                                }}
+                                            />
+                                            
                                             <div className="flex items-center gap-2 w-full min-w-0">
                                                 <span className="text-xs">{config.icon}</span>
                                                 <span className="truncate flex-1">{action.title}</span>
@@ -822,6 +940,15 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                                                     </div>
                                                 )}
                                             </div>
+                                            
+                                            {/* Poignée de redimensionnement droite */}
+                                            <div
+                                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMouseDown(e, action.id, 'resize-end');
+                                                }}
+                                            />
                                         </div>
                                     </Tooltip>
                                 </div>
@@ -835,17 +962,22 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
             <div className="border-t bg-gray-50 p-3">
                 <div className="flex items-center justify-between text-xs text-gray-600">
                     <div className="flex items-center gap-4">
-                        <span className="font-medium">Légende :</span>
-                        {Object.entries(actionTypeConfig).map(([key, config]) => (
-                            <div key={key} className="flex items-center gap-1">
-                                <div className={`w-3 h-3 ${config.barBg} rounded`}></div>
-                                <span>{config.name}</span>
-                            </div>
-                        ))}
+                        <span>💡 Glissez les barres pour déplacer, tirez les bords pour redimensionner</span>
                     </div>
-                    <div className="text-right">
-                        <div>Période : {startDate.toLocaleDateString('fr-FR')} → {endDate.toLocaleDateString('fr-FR')}</div>
-                        <div>{validActions.length} action(s) planifiée(s)</div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4">
+                            <span className="font-medium">Légende :</span>
+                            {Object.entries(actionTypeConfig).map(([key, config]) => (
+                                <div key={key} className="flex items-center gap-1">
+                                    <div className={`w-3 h-3 ${config.barBg} rounded`}></div>
+                                    <span>{config.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="text-right">
+                            <div>Période : {startDate.toLocaleDateString('fr-FR')} → {endDate.toLocaleDateString('fr-FR')}</div>
+                            <div>{validActions.length} action(s) planifiée(s)</div>
+                        </div>
                     </div>
                 </div>
             </div>
