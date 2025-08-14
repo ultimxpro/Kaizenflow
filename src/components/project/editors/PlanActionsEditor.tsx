@@ -1,6 +1,6 @@
 // src/components/project/editors/PlanActionsEditor.tsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { A3Module, User } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -8,7 +8,7 @@ import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus,
 
 // --- TYPES & INTERFACES ---
 type ActionType = 'simple' | 'securisation' | 'poka-yoke';
-type ActionStatus = 'À faire' | 'En cours' | 'Terminé';
+type ActionStatus = 'À faire' | 'Fait'; // Simplifié
 
 interface Action {
     id: string;
@@ -38,7 +38,7 @@ const actionTypeConfig = {
 };
 
 
-// --- COMPOSANTS UTILITAIAIRES ---
+// --- COMPOSANTS UTILITAIRES ---
 const Tooltip = ({ content, children }: { content: string, children: React.ReactNode }) => (
     <div className="relative group">
         {children}
@@ -48,13 +48,21 @@ const Tooltip = ({ content, children }: { content: string, children: React.React
     </div>
 );
 
-const DateIndicator = ({ dueDate }: { dueDate: string }) => {
+const DateIndicator = ({ dueDate, status }: { dueDate: string, status: ActionStatus }) => {
+    if (status === 'Fait') {
+        return (
+            <div className="flex items-center text-xs font-semibold text-green-600">
+                <Check size={14} className="mr-1" />
+                <span>Terminé</span>
+            </div>
+        );
+    }
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const due = new Date(dueDate);
     const diffDays = Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-    let color = 'text-green-600';
+    let color = 'text-gray-500';
     let text = "À l'heure";
     if (diffDays < 0) { color = 'text-red-600'; text = `En retard de ${Math.abs(diffDays)}j`; }
     else if (diffDays <= 7) { color = 'text-yellow-600'; text = `Échéance proche (${diffDays}j)`; }
@@ -100,23 +108,43 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
       </div>
       <h3 className="font-bold text-gray-800 text-sm">{action.title}</h3>
       <div className="mt-3">
-        <DateIndicator dueDate={action.due_date} />
+        <DateIndicator dueDate={action.due_date} status={action.status} />
       </div>
     </div>
   );
 };
 
-// --- FORMULAIRE D'ACTION (Nouvelle gestion du leader & Section Détails) ---
-const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
+// --- FORMULAIRE D'ACTION ---
+const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
     if (!isOpen) return null;
     
-    const [formData, setFormData] = useState<Partial<Action>>(action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: new Date().toISOString().split('T')[0], start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 });
+    const [formData, setFormData] = useState<Partial<Action>>(action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: '', start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 });
+    const [duration, setDuration] = useState(1);
+    const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    useEffect(() => {
+        if (!formData.start_date) return;
+        const startDate = new Date(formData.start_date);
+        let endDate = new Date(startDate);
+        if (durationUnit === 'days') {
+            endDate.setDate(startDate.getDate() + duration);
+        } else if (durationUnit === 'weeks') {
+            endDate.setDate(startDate.getDate() + duration * 7);
+        } else if (durationUnit === 'months') {
+            endDate.setMonth(startDate.getMonth() + duration);
+        }
+        setFormData(prev => ({ ...prev, due_date: endDate.toISOString().split('T')[0] }));
+    }, [formData.start_date, duration, durationUnit]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(p => ({ ...p, [name]: (e.target.type === 'range' || e.target.type === 'number') ? parseInt(value) : value }));
+        setFormData(p => ({ ...p, [name]: value }));
     };
 
+    const handleRangeChange = (name: 'effort' | 'gain', value: string) => {
+        setFormData(p => ({ ...p, [name]: parseInt(value) }));
+    };
+    
     const toggleAssignee = (userId: string) => {
         setFormData(prev => {
             const currentAssignees = prev.assignee_ids || [];
@@ -190,40 +218,53 @@ const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOp
                     </PDCASection>
 
                     <PDCASection title="Détails" icon={<Table size={20} />}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Activity size={14} className="mr-2"/> Statut</label>
-                                    <select name="status" value={formData.status} onChange={handleChange} className="p-2 w-full border bg-white border-gray-300 rounded"><option>À faire</option><option>En cours</option><option>Terminé</option></select>
+                        <div className="space-y-6">
+                            <div>
+                                <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Activity size={14} className="mr-2"/> Statut</label>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => setFormData(p => ({...p, status: 'À faire'}))} className={`py-2 px-4 rounded-lg flex-1 ${formData.status === 'À faire' ? 'bg-blue-600 text-white' : 'bg-white border'}`}>À faire</button>
+                                    <button type="button" onClick={() => setFormData(p => ({...p, status: 'Fait'}))} className={`py-2 px-4 rounded-lg flex-1 ${formData.status === 'Fait' ? 'bg-green-600 text-white' : 'bg-white border'}`}>Fait</button>
                                 </div>
-                                <div>
-                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Tag size={14} className="mr-2"/> Type</label>
-                                    <div className="relative">
-                                        <select name="type" value={formData.type} onChange={handleChange} className="w-full p-2 border bg-white border-gray-300 rounded appearance-none pl-8">
-                                          {Object.entries(actionTypeConfig).map(([key, config]) => <option key={key} value={key}>{config.name}</option>)}
-                                        </select>
-                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">{formData.type ? actionTypeConfig[formData.type].icon : ''}</span>
+                            </div>
+                            <div>
+                                <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Tag size={14} className="mr-2"/> Type d'action</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {Object.entries(actionTypeConfig).map(([key, config]) => (
+                                        <button type="button" key={key} onClick={() => setFormData(p => ({...p, type: key as ActionType}))} className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 ${formData.type === key ? `${config.a3Color} font-bold ring-2 ring-current` : 'bg-white border'}`}>
+                                            {config.icon} {config.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                             <div>
+                                <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Calendar size={14} className="mr-2"/> Échéance</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs text-gray-500">Date de début</label>
+                                        <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
                                     </div>
+                                     <div>
+                                        <label className="text-xs text-gray-500">Durée</label>
+                                        <div className="flex">
+                                            <input type="number" value={duration} onChange={e => setDuration(parseInt(e.target.value))} min="1" className="p-2 border bg-white border-gray-300 rounded-l w-1/2"/>
+                                            <select value={durationUnit} onChange={e => setDurationUnit(e.target.value as any)} className="p-2 border bg-white border-gray-300 rounded-r w-1/2">
+                                                <option value="days">Jours</option>
+                                                <option value="weeks">Semaines</option>
+                                                <option value="months">Mois</option>
+                                            </select>
+                                        </div>
+                                     </div>
                                 </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Calendar size={14} className="mr-2"/> Date de début</label>
-                                    <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Calendar size={14} className="mr-2"/> Date de fin</label>
-                                    <input type="date" name="due_date" value={formData.due_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
-                                </div>
-                            </div>
+                                {formData.due_date && <p className="text-xs text-gray-500 mt-2">Date de fin prévisionnelle : <span className="font-semibold">{new Date(formData.due_date).toLocaleDateString()}</span></p>}
+                             </div>
                         </div>
                     </PDCASection>
                     
                     <PDCASection title="Priorisation" icon={<GanttChartSquare size={20} />}>
                         <div className="grid grid-cols-2 gap-6 items-center">
                             <div>
-                                <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort} onChange={handleChange} className="w-full" /></div>
-                                <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain} onChange={handleChange} className="w-full" /></div>
+                                <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort} onChange={e => handleRangeChange('effort', e.target.value)} className="w-full" /></div>
+                                <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain} onChange={e => handleRangeChange('gain', e.target.value)} className="w-full" /></div>
                             </div>
                             <div className="text-center">
                                 <p className="text-sm text-gray-500">Position dans la matrice :</p>
@@ -240,7 +281,7 @@ const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOp
             </div>
         </div>
     );
-};
+});
 
 
 // --- VUES SPÉCIFIQUES ---
@@ -283,7 +324,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }) => {
     
     const filteredActions = useMemo(() => actions.filter(a => a.assignee_ids.includes(selectedUser)), [actions, selectedUser]);
     const columns = useMemo(() => {
-        const grouped: { [key in ActionStatus]: Action[] } = { 'À faire': [], 'En cours': [], 'Terminé': [] };
+        const grouped: { [key in ActionStatus]: Action[] } = { 'À faire': [], 'Fait': [] };
         filteredActions.forEach(action => { if (grouped[action.status]) grouped[action.status].push(action); });
         return grouped;
     }, [filteredActions]);
@@ -302,7 +343,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }) => {
                     {users.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
                 </select>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
                 {Object.entries(columns).map(([status, items]) => (
                     <div key={status} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg p-4 transition-colors" 
                          onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status as ActionStatus)} 
@@ -443,12 +484,12 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
     setLoading(false);
   }, [module]);
   
-  const saveActionsToDb = (updatedActions: Action[]) => {
+  const saveActionsToDb = useCallback((updatedActions: Action[]) => {
       setActions(updatedActions);
       updateA3Module(module.id, { content: { ...module.content, actions: updatedActions } });
-  }
+  }, [module, updateA3Module]);
 
-  const handleSaveAction = (actionData: Action) => {
+  const handleSaveAction = useCallback((actionData: Action) => {
       let updatedActions;
       if (actionData.id && actions.find(a => a.id === actionData.id)) {
           updatedActions = actions.map(a => a.id === actionData.id ? actionData : a);
@@ -458,11 +499,11 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
       saveActionsToDb(updatedActions);
       setIsActionModalOpen(false); 
       setEditingAction(null);
-  };
+  }, [actions, saveActionsToDb]);
   
-  const handleSetActions = (updatedActions: Action[], changedItem: Action) => {
+  const handleSetActions = useCallback((updatedActions: Action[], changedItem: Action) => {
       saveActionsToDb(updatedActions);
-  };
+  }, [saveActionsToDb]);
   
   const openActionModal = (action: Action | null = null) => { 
       setEditingAction(action); 
@@ -521,13 +562,13 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
             </main>
         </div>
 
-        <ActionModal 
+        {isActionModalOpen && <ActionModal 
           isOpen={isActionModalOpen} 
           onClose={() => { setIsActionModalOpen(false); setEditingAction(null); }}
           onSave={handleSaveAction}
           action={editingAction}
           projectMembers={currentProjectMembers}
-        />
+        />}
 
         {showHelp && (
             <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]">
