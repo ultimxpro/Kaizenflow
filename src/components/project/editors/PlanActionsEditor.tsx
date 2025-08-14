@@ -581,14 +581,18 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     if (validActions.length === 0) {
       const today = new Date();
       const start = new Date(today);
+      start.setHours(0,0,0,0);
       start.setDate(today.getDate() - 30);
       const end = new Date(today);
+      end.setHours(0,0,0,0);
       end.setDate(today.getDate() + 60);
       return { start, end };
     }
     const allDates = validActions.flatMap(a => [new Date(a.start_date), new Date(a.due_date)]);
     const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+    minDate.setHours(0,0,0,0);
+    maxDate.setHours(0,0,0,0);
     minDate.setDate(minDate.getDate() - 7);
     maxDate.setDate(maxDate.getDate() + 14);
     return { start: minDate, end: maxDate };
@@ -608,8 +612,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     if (!ganttStartDate || !ganttEndDate) return [];
     const columns = [];
     let current = new Date(ganttStartDate);
-    current.setHours(0,0,0,0);
-    ganttEndDate.setHours(0,0,0,0);
     while (current <= ganttEndDate) {
       let label = '', nextDate = new Date(current);
       switch (ganttScale) {
@@ -623,47 +625,40 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     return columns;
   }, [ganttStartDate, ganttEndDate, ganttScale]);
   
+  const totalWidth = useMemo(() => timelineColumns.reduce((acc, col) => acc + col.width, 0), [timelineColumns]);
+
   const calculateBarPositionAndWidth = (action: Action) => {
-    if (!ganttStartDate) return { left: 0, width: 0 };
+    if (!ganttStartDate || !ganttEndDate || totalWidth === 0) return { left: 0, width: 0 };
     
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
-    const unitWidth = ganttScale === 'day' ? 50 : ganttScale === 'week' ? 80 : 150;
-    
+    const timelineDurationMs = ganttEndDate.getTime() - ganttStartDate.getTime();
+    if (timelineDurationMs <= 0) return { left: 0, width: 0 };
+
+    const pixelsPerMs = totalWidth / timelineDurationMs;
+
     const actionStart = new Date(action.start_date + 'T00:00:00');
     const actionEnd = new Date(action.due_date + 'T00:00:00');
-    const normalizedGanttStart = new Date(ganttStartDate);
-    normalizedGanttStart.setHours(0,0,0,0);
     
-    const startDiffDays = (actionStart.getTime() - normalizedGanttStart.getTime()) / MS_PER_DAY;
-    const durationDays = (actionEnd.getTime() - actionStart.getTime()) / MS_PER_DAY + 1;
+    const startOffsetMs = actionStart.getTime() - ganttStartDate.getTime();
+    const actionDurationMs = (actionEnd.getTime() - actionStart.getTime()) + MS_PER_DAY; // +1 jour pour être inclusif
 
-    let pixelsPerDay = unitWidth;
-    if(ganttScale === 'week') pixelsPerDay = unitWidth / 7;
-    if(ganttScale === 'month') pixelsPerDay = unitWidth / 30.44;
-
-    const left = startDiffDays * pixelsPerDay;
-    const width = durationDays * pixelsPerDay;
+    const left = startOffsetMs * pixelsPerMs;
+    const width = actionDurationMs * pixelsPerMs;
 
     return { left, width };
   };
 
-  const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month', rounding: 'round' | 'floor' | 'ceil' = 'round') => {
+  const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month') => {
     const newDate = new Date(date);
-    newDate.setHours(12, 0, 0, 0); // Set to midday to avoid timezone issues
+    newDate.setUTCHours(0, 0, 0, 0);
     switch (scale) {
       case 'week': 
-        const day = newDate.getDay();
-        const diff = newDate.getDate() - day + (day === 0 ? -6 : 1);
-        newDate.setDate(diff); 
+        const day = newDate.getUTCDay();
+        const diff = newDate.getUTCDate() - day + (day === 0 ? -6 : 1);
+        newDate.setUTCDate(diff); 
         break;
       case 'month': 
-        if (rounding === 'ceil' && newDate.getDate() > 15) {
-            newDate.setMonth(newDate.getMonth() + 1, 1);
-        } else {
-            newDate.setDate(1);
-        }
-        break;
-      default:
+        newDate.setUTCDate(1); 
         break;
     }
     return newDate;
@@ -685,28 +680,24 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
         if (!dragState || !ganttRef.current || !ganttStartDate || !ganttEndDate) return;
-        
-        const unitWidth = dragState.scale === 'day' ? 50 : dragState.scale === 'week' ? 80 : 150;
-        let pixelsPerDay = unitWidth;
-        if(dragState.scale === 'week') pixelsPerDay = unitWidth / 7;
-        if(dragState.scale === 'month') pixelsPerDay = unitWidth / 30.44;
+        const rect = ganttRef.current.getBoundingClientRect();
+        if (rect.width === 0 || totalWidth === 0) return;
+
+        const timelineDurationMs = ganttEndDate.getTime() - ganttStartDate.getTime();
+        const msPerPixel = timelineDurationMs / totalWidth;
 
         const deltaX = e.clientX - dragState.startX;
-        const deltaDays = Math.round(deltaX / pixelsPerDay);
-        const deltaTime = deltaDays * 1000 * 60 * 60 * 24;
+        const deltaTime = deltaX * msPerPixel;
         
-        let newStartDate = new Date(dragState.originalStartDate);
-        let newEndDate = new Date(dragState.originalEndDate);
+        let newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
+        let newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
         
-        if (dragState.mode === 'move') {
-            newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
-            newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-        } else if (dragState.mode === 'resize-right') {
-            newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
+        if (dragState.mode === 'resize-right') {
+            newStartDate = new Date(dragState.originalStartDate); // La date de début ne bouge pas
         }
 
-        if (newEndDate <= newStartDate) {
-            newEndDate.setDate(newStartDate.getDate() + 1);
+        if (newEndDate.getTime() < newStartDate.getTime()) {
+            newEndDate = new Date(newStartDate.getTime() + (1000 * 60 * 60 * 24));
         }
 
         onUpdateAction(dragState.actionId, {
@@ -720,9 +711,8 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         const action = validActions.find(a => a.id === dragState.actionId);
         if (!action) { setDragState(null); return; };
         
-        // Snap dates at the end of the drag
-        let finalStartDate = snapDateToScale(new Date(action.start_date), dragState.scale, 'round');
-        let finalEndDate = snapDateToScale(new Date(action.due_date), dragState.scale, 'ceil');
+        let finalStartDate = snapDateToScale(new Date(action.start_date), dragState.scale);
+        let finalEndDate = snapDateToScale(new Date(action.due_date), dragState.scale);
 
         if (finalEndDate <= finalStartDate) {
             finalEndDate.setDate(finalStartDate.getDate() + 1);
@@ -739,13 +729,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         });
 
         if (finalStartDateStr !== originalStartDateStr || finalEndDateStr !== originalEndDateStr) {
-            setConfirmationModal({ 
-                action, 
-                newStartDate: finalStartDateStr, 
-                newEndDate: finalEndDateStr, 
-                originalStartDate: originalStartDateStr, 
-                originalEndDate: originalEndDateStr 
-            });
+            setConfirmationModal({ action, newStartDate: finalStartDateStr, newEndDate: finalEndDateStr, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
         }
         setDragState(null);
     };
@@ -758,7 +742,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, onUpdateAction, validActions, ganttStartDate, ganttEndDate]);
+  }, [dragState, onUpdateAction, validActions, ganttStartDate, ganttEndDate, totalWidth]);
 
   const handleConfirm = () => setConfirmationModal(null);
 
@@ -792,8 +776,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         </div>
     );
   }
-
-  const totalWidth = timelineColumns.reduce((acc, col) => acc + col.width, 0);
 
   return (
     <div className="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -850,7 +832,18 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
                         const isCompleted = action.status === 'Fait';
                         const quadrant = getQuadrant(action.gain, action.effort);
 
-                        const tooltipContent = `...`; // Placeholder, full content is correct in the main file
+                        const tooltipContent = `
+                            <div class="text-left p-1">
+                                <div class="font-bold text-base mb-2">${action.title}</div>
+                                <div class="text-xs text-gray-300 mb-2">
+                                    ${new Date(action.start_date + 'T00:00:00').toLocaleDateString('fr-FR')} → ${new Date(action.due_date + 'T00:00:00').toLocaleDateString('fr-FR')}
+                                </div>
+                                <div class="flex items-center gap-2 mb-2">
+                                     ${(action.assignee_ids.map(id => users.find(u => u.id === id)).filter(Boolean).map(u => `<img src="${u.avatarUrl || `https://i.pravatar.cc/150?u=${u.id}`}" class="w-6 h-6 rounded-full border-2 border-gray-500" />`)).join('')}
+                                </div>
+                                <div class="text-xs font-semibold px-2 py-1 rounded-full w-fit ${quadrant.color} ${quadrant.textColor}">${quadrant.name}</div>
+                            </div>
+                        `;
 
                         return (
                             <div key={action.id} className="absolute h-12 flex items-center" style={{ top: `${index * 48}px`, left: `${left}px`, width: `${width}px`, zIndex: 10 }}>
