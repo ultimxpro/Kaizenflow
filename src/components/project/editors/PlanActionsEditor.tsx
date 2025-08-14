@@ -126,6 +126,7 @@ const PDCASection = ({ title, icon, children }: { title: string, icon: React.Rea
 
 // --- FORMULAIRE D'ACTION ---
 // Helper pour convertir une string "YYYY-W##" en date du lundi correspondant
+// Helper pour convertir une string "YYYY-W##" en date du lundi correspondant
 const getDateOfISOWeek = (weekString: string): Date => {
     if (!weekString) return new Date();
     const [year, week] = weekString.split('-W').map(Number);
@@ -140,19 +141,19 @@ const getDateOfISOWeek = (weekString: string): Date => {
     return isoWeekStart;
 };
 
-const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMembers, ganttScale }: { 
+const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMembers }: { 
     isOpen: boolean, 
     onClose: () => void, 
     onSave: (action: Action) => void, 
     action: Action | null, 
-    projectMembers: User[],
-    ganttScale: 'day' | 'week' | 'month'
+    projectMembers: User[]
 }) => {
     if (!isOpen) return null;
 
     const [formData, setFormData] = useState<Partial<Action>>({});
     const [duration, setDuration] = useState(7);
     const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
+    
     const [weekValue, setWeekValue] = useState('');
     const [monthValue, setMonthValue] = useState('');
 
@@ -170,10 +171,10 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
             const end = new Date(action.due_date);
             const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-            if (diffDays > 0 && diffDays % 30 === 0) {
+            if (diffDays > 0 && diffDays % 30 === 0 && diffDays / 30 > 0) {
                 setDuration(diffDays / 30);
                 setDurationUnit('months');
-            } else if (diffDays > 0 && diffDays % 7 === 0) {
+            } else if (diffDays > 0 && diffDays % 7 === 0 && diffDays / 7 > 0) {
                 setDuration(diffDays / 7);
                 setDurationUnit('weeks');
             } else {
@@ -205,14 +206,14 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
 
     const handleDateInputChange = (value: string) => {
         let startDateStr = '';
-        if (ganttScale === 'day') {
+        if (durationUnit === 'days') {
             startDateStr = value;
-        } else if (ganttScale === 'week') {
+        } else if (durationUnit === 'weeks') {
             setWeekValue(value);
             if (value) {
                 startDateStr = getDateOfISOWeek(value).toISOString().split('T')[0];
             }
-        } else if (ganttScale === 'month') {
+        } else if (durationUnit === 'months') {
             setMonthValue(value);
             if (value) {
                 startDateStr = `${value}-01`;
@@ -300,18 +301,18 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-xs text-gray-500">
-                                            {ganttScale === 'day' && "Date de début"}
-                                            {ganttScale === 'week' && "Semaine de début"}
-                                            {ganttScale === 'month' && "Mois de début"}
+                                            {durationUnit === 'days' && "Date de début"}
+                                            {durationUnit === 'weeks' && "Semaine de début"}
+                                            {durationUnit === 'months' && "Mois de début"}
                                         </label>
                                         
-                                        {ganttScale === 'day' && (
+                                        {durationUnit === 'days' && (
                                             <input type="date" value={formData.start_date || ''} onChange={(e) => handleDateInputChange(e.target.value)} className="p-2 border bg-white border-gray-300 rounded w-full" />
                                         )}
-                                        {ganttScale === 'week' && (
+                                        {durationUnit === 'weeks' && (
                                             <input type="week" value={weekValue} onChange={(e) => handleDateInputChange(e.target.value)} className="p-2 border bg-white border-gray-300 rounded w-full" />
                                         )}
-                                        {ganttScale === 'month' && (
+                                        {durationUnit === 'months' && (
                                             <input type="month" value={monthValue} onChange={(e) => handleDateInputChange(e.target.value)} className="p-2 border bg-white border-gray-300 rounded w-full" />
                                         )}
                                     </div>
@@ -335,8 +336,8 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                     <PDCASection title="Priorisation" icon={<GanttChartSquare size={20} />}>
                         <div className="grid grid-cols-2 gap-6 items-center">
                             <div>
-                                <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort || 5} onChange={e => handleRangeChange('effort', e.target.value)} className="w-full" /></div>
-                                <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain || 5} onChange={e => handleRangeChange('gain', e.target.value)} className="w-full" /></div>
+                                <div><label>Effort (Complexité): {formData.effort || 5}</label><input type="range" name="effort" min="1" max="10" value={formData.effort || 5} onChange={e => handleRangeChange('effort', e.target.value)} className="w-full" /></div>
+                                <div className="mt-2"><label>Gain (Impact): {formData.gain || 5}</label><input type="range" name="gain" min="1" max="10" value={formData.gain || 5} onChange={e => handleRangeChange('gain', e.target.value)} className="w-full" /></div>
                             </div>
                             <div className="text-center">
                                 <p className="text-sm text-gray-500">Position dans la matrice :</p>
