@@ -241,7 +241,7 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                                 <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
                                                 {isSelected && (
                                                     <Tooltip content={isLeader ? "Leader actuel" : "Promouvoir Leader"}>
-                                                        <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1">
+                                                        <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
                                                             {isLeader ? (
                                                                 <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
                                                                     <Crown className="w-3 h-3 text-yellow-800" />
