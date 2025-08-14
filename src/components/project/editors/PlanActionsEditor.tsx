@@ -4,18 +4,28 @@ import { useDatabase } from '../../../contexts/DatabaseContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Plus, HelpCircle, Eye, Kanban, BarChart3, Edit, Trash2, X, CheckSquare, Calendar } from 'lucide-react';
 
-// --- INTERFACES (inchangées) ---
-interface PlanActionsEditorProps { module: A3Module; onClose: () => void; }
+// --- INTERFACES ---
+interface PlanActionsEditorProps {
+  module: A3Module;
+  onClose: () => void;
+}
 
-// --- SOUS-COMPOSANT : FORMULAIRE D'ACTION (inchangé) ---
+// --- SOUS-COMPOSANT : FORMULAIRE D'ACTION ---
 const ActionFormModal: React.FC<{
-    action: Partial<Action>; users: User[]; initialAssignees: string[];
-    onClose: () => void; onSave: (actionData: Partial<Action>, assignees: string[]) => void;
+    action: Partial<Action>;
+    users: User[];
+    initialAssignees: string[];
+    onClose: () => void;
+    onSave: (actionData: Partial<Action>, assignees: string[]) => void;
 }> = ({ action, users, initialAssignees, onClose, onSave }) => {
     const [formData, setFormData] = useState<Partial<Action>>(action);
     const [assignees, setAssignees] = useState<string[]>(initialAssignees);
+
     const handleSave = () => { onSave(formData, assignees); };
-    const handleAssigneeToggle = (userId: string) => { setAssignees(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]); };
+    const handleAssigneeToggle = (userId: string) => {
+        setAssignees(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
@@ -95,36 +105,75 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
 
   const getActionAssignees = (actionId: string) => actionAssignees.filter(aa => aa.action === actionId).map(aa => users.find(u => u.id === aa.user)).filter(Boolean) as User[];
   
-  const ActionCard: React.FC<{ action: Action }> = ({ action }) => { /* ... (Code inchangé) */ };
+  // --- SOUS-COMPOSANTS POUR LES VUES ---
 
-  const MatrixView = () => {
-    const actionTypes = [
-        { type: 'Sécurisation', color: 'border-red-400', title: 'Action de Sécurisation' },
-        { type: 'Simple', color: 'border-blue-400', title: 'Actions Simples' },
-        { type: 'Poka-Yoke', color: 'border-green-400', title: 'Action Poka-Yoke' }
-    ];
+  const ActionCard: React.FC<{ action: Action }> = ({ action }) => {
+    const assignees = getActionAssignees(action.id);
     return (
+      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow w-full">
+        <div className="flex items-start justify-between mb-2">
+            <h4 className="text-sm font-medium text-gray-900 line-clamp-2 pr-2">{action.titre || 'Action sans titre'}</h4>
+            <div className="flex items-center space-x-1 flex-shrink-0">
+                <button onClick={() => handleOpenForm(action)} className="text-gray-400 hover:text-blue-600 p-1"><Edit className="w-3.5 h-3.5" /></button>
+                <button onClick={() => {if(confirm("Supprimer cette action ?")) deleteAction(action.id)}} className="text-gray-400 hover:text-red-600 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+            </div>
+        </div>
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${action.statut === 'Fait' ? 'bg-green-100 text-green-700' : action.statut === 'En Cours' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{action.statut}</span>
+            {action.dateEcheance && <span className="flex items-center"><Calendar className="w-3 h-3 mr-1" />{new Date(action.dateEcheance).toLocaleDateString('fr-FR')}</span>}
+        </div>
+        {assignees.length > 0 && (
+          <div className="flex items-center -space-x-2 mt-2">
+            {assignees.map(user => <div key={user.id} title={user.nom} className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 text-xs font-bold border-2 border-white">{user.nom.split(' ').map(n=>n[0]).join('')}</div>)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const MatrixView = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-        <div className="flex flex-col space-y-4">
-            {actionTypes.map(({type, color, title}) => (
-                <div key={type} className={`bg-white rounded-lg p-4 border-t-4 ${color} shadow-sm flex-1 flex flex-col transition-all hover:shadow-xl`}>
-                    <h4 className="font-semibold text-gray-800 mb-3 text-center">{title}</h4>
-                    <div className="space-y-3 flex-1 overflow-y-auto p-1 min-h-0">
-                        {projectActions.filter(a=>a.typeAction === type).map(action => <ActionCard key={action.id} action={action} />)}
+        <div className="flex flex-col space-y-4 min-h-0">
+            {['Sécurisation', 'Simple', 'Poka-Yoke'].map(type => {
+                const typeColor = type === 'Sécurisation' ? 'border-red-400' : type === 'Simple' ? 'border-blue-400' : 'border-green-400';
+                return (
+                    <div key={type} className={`bg-white rounded-lg p-4 border-t-4 ${typeColor} shadow-sm flex-1 flex flex-col transition-all hover:shadow-xl`}>
+                        <h4 className="font-semibold text-gray-800 mb-3 text-center">{type === 'Simple' ? 'Actions Simples' : `Action de ${type}`}</h4>
+                        <div className="space-y-3 flex-1 overflow-y-auto p-1 min-h-0">
+                            {projectActions.filter(a=>a.typeAction === type).map(action => <ActionCard key={action.id} action={action} />)}
+                        </div>
                     </div>
-                </div>
-            ))}
+                )
+            })}
         </div>
         <div className="bg-white rounded-lg p-6 border flex flex-col items-center">
-            {/* ... Matrice Gain/Effort (code inchangé) ... */}
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Matrice Gain/Effort</h3>
+            <div className="relative w-full aspect-square max-w-sm">
+                <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
+                    <div className="border-r border-b border-gray-300 bg-green-50 flex items-center justify-center text-center text-green-700 font-bold text-xs p-2">Fort Gain / Faible Effort</div>
+                    <div className="border-b border-gray-300 bg-blue-50 flex items-center justify-center text-center text-blue-700 font-bold text-xs p-2">Fort Gain / Fort Effort</div>
+                    <div className="border-r border-gray-300 bg-yellow-50 flex items-center justify-center text-center text-yellow-700 font-bold text-xs p-2">Faible Gain / Faible Effort</div>
+                    <div className="bg-red-50 flex items-center justify-center text-center text-red-700 font-bold text-xs p-2">Faible Gain / Fort Effort</div>
+                </div>
+                {projectActions.map(action => (
+                    <div 
+                        key={action.id}
+                        className="absolute w-4 h-4 bg-gray-800 rounded-full border-2 border-white cursor-pointer hover:scale-150 transition-transform"
+                        style={{ left: `calc(${(action.effort - 1) * 100 / 9}% - 8px)`, bottom: `calc(${(action.gain - 1) * 100 / 9}% - 8px)` }}
+                        title={`Action: ${action.titre}\nEffort: ${action.effort}, Gain: ${action.gain}`}
+                        onClick={() => handleOpenForm(action)}
+                    ></div>
+                ))}
+            </div>
+            <div className="w-full text-center mt-2 text-sm font-medium text-gray-700">→ Effort</div>
         </div>
     </div>
-  )};
+  );
 
   const KanbanView = () => (
     <div className="flex space-x-6 h-full overflow-x-auto pb-4">
         {members.map(member => (
-            <div key={member.id} className="w-72 bg-gray-50 rounded-lg p-4 border flex flex-col flex-shrink-0">
+            <div key={member.id} className="w-72 bg-white rounded-lg p-4 border flex flex-col flex-shrink-0">
                 <div className="flex items-center space-x-2 mb-3">
                     <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-bold">{member.nom.split(' ').map(n=>n[0]).join('')}</div>
                     <h4 className="font-semibold text-gray-800">{member.nom}</h4>
@@ -139,23 +188,76 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
     </div>
   );
 
-  const GanttView = () => {
-    // ... (Code Gantt complet ci-dessous)
-  };
+  const GanttView = () => (
+    <div className="bg-white rounded-lg p-6 border h-full overflow-y-auto">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Vue Gantt Simplifiée</h3>
+        <p className="text-sm text-gray-500">Cette vue est une représentation et n'est pas interactive.</p>
+        <div className="mt-6 space-y-4">
+            {members.map(member => (
+                <div key={member.id}>
+                    <div className="flex items-center space-x-2 mb-2">
+                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 text-xs font-bold">{member.nom.split(' ').map(n=>n[0]).join('')}</div>
+                        <h5 className="font-medium text-gray-800 text-sm">{member.nom}</h5>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-lg p-2 min-h-[40px] relative">
+                        {projectActions.filter(action => getActionAssignees(action.id).some(a => a.id === member.id)).map(action => {
+                            // Simple-case timeline logic (needs a proper library for real use)
+                            const left = (new Date(action.dateEcheance).getDay() / 7) * 100;
+                            const width = (action.duration * (action.durationUnit === 'semaines' ? 7 : 1) / 30) * 100;
+                            return (
+                            <div key={action.id} title={action.titre} className="absolute bg-blue-500 text-white text-xs font-medium rounded p-1 h-6 truncate" style={{ left: `${left}%`, width: `${width}%`}}>
+                                {action.titre}
+                            </div>
+                        )})}
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-8 z-50">
         <div className="bg-white rounded-2xl shadow-xl flex flex-col w-full h-full overflow-hidden">
-            {/* ... Header (code inchangé) ... */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-                {activeView === 'matrix' && <MatrixView />}
-                {activeView === 'kanban' && <KanbanView />}
-                {activeView === 'gantt' && <GanttView />}
+            <div className="flex items-center justify-between p-6 border-b" style={{ flexGrow: 0, flexShrink: 0 }}>
+                <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center"><CheckSquare className="w-6 h-6" /></div>
+                    <h1 className="text-2xl font-bold text-gray-900">Plan d'Actions</h1>
+                </div>
+                 <div className="flex items-center space-x-3">
+                    <button onClick={() => setShowHelp(true)} className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center" title="Aide"><HelpCircle className="w-5 h-5 text-gray-600" /></button>
+                    <button onClick={onClose} className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center" title="Fermer"><X className="w-5 h-5 text-gray-600" /></button>
+                </div>
             </div>
+            
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="p-4 border-b flex items-center justify-between bg-gray-50">
+                    <div className="flex bg-white rounded-lg p-1 border shadow-sm">
+                        <button onClick={() => setActiveView('matrix')} className={`px-3 py-1 rounded text-sm font-medium flex items-center ${activeView === 'matrix' ? 'bg-gray-800 text-white' : 'text-gray-600'}`}><Eye className="w-4 h-4 mr-1.5" />Matrice</button>
+                        <button onClick={() => setActiveView('kanban')} className={`px-3 py-1 rounded text-sm font-medium flex items-center ${activeView === 'kanban' ? 'bg-gray-800 text-white' : 'text-gray-600'}`}><Kanban className="w-4 h-4 mr-1.5" />Kanban</button>
+                        <button onClick={() => setActiveView('gantt')} className={`px-3 py-1 rounded text-sm font-medium flex items-center ${activeView === 'gantt' ? 'bg-gray-800 text-white' : 'text-gray-600'}`}><BarChart3 className="w-4 h-4 mr-1.5" />Gantt</button>
+                    </div>
+                    <button onClick={() => handleOpenForm()} className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm">
+                        <Plus className="w-5 h-5" /><span>Nouvelle Action</span>
+                    </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                    {activeView === 'matrix' && <MatrixView />}
+                    {activeView === 'kanban' && <KanbanView />}
+                    {activeView === 'gantt' && <GanttView />}
+                </div>
+            </div>
+
+            {showActionForm && editingAction && (
+                <ActionFormModal 
+                    action={editingAction}
+                    users={users}
+                    initialAssignees={actionAssignees.filter(aa => aa.action === editingAction.id).map(aa => aa.user)}
+                    onClose={() => { setShowActionForm(false); setEditingAction(null); }}
+                    onSave={handleSaveAction}
+                />
+            )}
         </div>
-        {showActionForm && editingAction && (
-             <ActionFormModal /* ... */ />
-        )}
     </div>
   );
 };
