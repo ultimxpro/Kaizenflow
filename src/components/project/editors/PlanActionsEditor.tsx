@@ -37,12 +37,13 @@ const actionTypeConfig = {
     'poka-yoke': { name: 'Poka-Yoke', icon: '🧩', color: 'border-yellow-500', textColor: 'text-yellow-600', barBg: 'bg-yellow-500', a3Color: 'bg-yellow-100 text-yellow-800', lightBg: 'bg-yellow-50' },
 };
 
+// La version correcte et complète de la fonction
 const getQuadrant = (gain: number, effort: number) => {
-        if (gain >= 5 && effort < 5) return { name: "Quick Win 🔥", color: "bg-green-200" };
-        if (gain >= 5 && effort >= 5) return { name: "Gros projet 🗓️", color: "bg-blue-200" };
-        if (gain < 5 && effort < 5) return { name: "Tâche de fond 👌", color: "bg-yellow-200" };
-        return { name: "À éviter 🤔", color: "bg-red-200" };
-    };
+    if (gain >= 5 && effort < 5) return { name: "Quick Win 🔥", color: "bg-green-100", textColor: "text-green-800" };
+    if (gain >= 5 && effort >= 5) return { name: "Gros projet 🗓️", color: "bg-blue-100", textColor: "text-blue-800" };
+    if (gain < 5 && effort < 5) return { name: "Tâche de fond 👌", color: "bg-yellow-100", textColor: "text-yellow-800" };
+    return { name: "À éviter 🤔", color: "bg-red-100", textColor: "text-red-800" };
+};
 
 // --- COMPOSANTS UTILITAIRES ---
 const Tooltip = ({ content, children }: { content: string, children: React.ReactNode }) => (
