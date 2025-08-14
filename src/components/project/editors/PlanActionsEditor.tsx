@@ -339,7 +339,7 @@ const PlanActionsEditor = () => {
             <div className="flex items-center gap-2 bg-white p-1 rounded-lg shadow-sm">
                 <TabButton active={view === 'home'} onClick={() => setView('home')} icon="fa-layer-group">Par Type</TabButton>
                 <TabButton active={view === 'kanban'} onClick={() => setView('kanban')} icon="fa-user-group">Par Personne</TabButton>
-                <TabButton active={view ==='matrix'} onClick={() => setView('matrix')} icon="fa-table-cells-large">Matrice</Tab-Button>
+                <TabButton active={view ==='matrix'} onClick={() => setView('matrix')} icon="fa-table-cells-large">Matrice</TabButton>
                 <TabButton active={view === 'gantt'} onClick={() => setView('gantt')} icon="fa-chart-gantt">Gantt</TabButton>
             </div>
             <button onClick={() => openModal()} className="py-2 px-4 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600 flex items-center gap-2">
