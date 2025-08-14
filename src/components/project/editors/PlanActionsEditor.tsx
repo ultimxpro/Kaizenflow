@@ -106,7 +106,7 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
   );
 };
 
-// --- FORMULAIRE D'ACTION ---
+// --- FORMULAIRE D'ACTION (Nouvelle gestion du leader) ---
 const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
     if (!isOpen) return null;
     
