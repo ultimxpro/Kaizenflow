@@ -295,7 +295,7 @@ const GanttView = ({ actions, onCardClick }) => {
 };
 
 // --- COMPOSANT PRINCIPAL DE L'APPLICATION ---
-const PlanActionsEditor = () => {
+export const PlanActionsEditor = () => {
   const [view, setView] = useState('home');
   const [actions, setActions] = useState<Action[]>([]);
   const [loading, setLoading] = useState(true);
@@ -368,5 +368,3 @@ const PlanActionsEditor = () => {
     </div>
   );
 };
-
-export default PlanActionsEditor;
