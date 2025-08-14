@@ -106,7 +106,7 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
   );
 };
 
-// --- FORMULAIRE D'ACTION (Refonte avec membres du projet) ---
+// --- FORMULAIRE D'ACTION (Nouvelle gestion du leader) ---
 const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
     if (!isOpen) return null;
     
@@ -167,17 +167,21 @@ const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOp
                               const isSelected = (formData.assignee_ids || []).includes(user.id);
                               const isLeader = formData.leader_id === user.id;
                               return (
-                                <div key={user.id} className="text-center">
-                                  <div onClick={() => toggleAssignee(user.id)} className={`relative p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'bg-blue-200 ring-2 ring-blue-400' : 'hover:bg-gray-200'}`}>
+                                <div key={user.id} className="flex flex-col items-center">
+                                  <div onClick={() => toggleAssignee(user.id)} className={`relative p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'bg-blue-200' : 'hover:bg-gray-200'}`}>
                                     <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
-                                    {isLeader && <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500 bg-white rounded-full p-0.5" />}
+                                    {isLeader && (
+                                        <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500 bg-white rounded-full p-0.5" fill="currentColor"/>
+                                    )}
+                                    {isSelected && !isLeader && (
+                                        <Tooltip content="Promouvoir Leader">
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full p-0.5 flex items-center justify-center">
+                                                <Crown className="w-full h-full text-gray-400 hover:text-yellow-500" strokeDasharray="2 2" />
+                                            </button>
+                                        </Tooltip>
+                                    )}
                                   </div>
                                   <span className="text-xs mt-1 font-semibold text-gray-700">{user.nom}</span>
-                                  {isSelected && (
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className={`mt-1 text-xs px-2 py-0.5 rounded-full ${isLeader ? 'bg-yellow-400 text-black font-bold' : 'bg-gray-200 hover:bg-gray-300'}`}>
-                                      {isLeader ? 'Leader' : 'Promouvoir'}
-                                    </button>
-                                  )}
                                 </div>
                               );
                             })}
@@ -412,7 +416,6 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
   const [editingAction, setEditingAction] = useState<Action | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
-  // NOUVELLE LOGIQUE : Récupérer uniquement les membres du projet actuel
   const currentProjectMembers = useMemo(() => {
     const memberIds = projectMembers
       .filter(pm => pm.project === module.project)
@@ -422,7 +425,6 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
 
 
   useEffect(() => {
-    // Load actions from the module's content
     const savedActions = module.content?.actions || [];
     setActions(savedActions);
     setLoading(false);
@@ -495,7 +497,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
             </div>
             
             <main className="flex-1 overflow-y-auto min-h-0">
-                {loading ? <div className="text-center p-8">Chargement...</div> : (
+                {loading || !currentProjectMembers ? <div className="text-center p-8">Chargement...</div> : (
                     <>
                         {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                         {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
