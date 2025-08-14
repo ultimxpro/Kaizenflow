@@ -19,7 +19,7 @@ interface Action {
     start_date: string;
     type: ActionType;
     assignee_ids: string[];
-    leader_id?: string; // On peut laisser cette propriété pour ne pas casser la structure de données
+    leader_id?: string;
     effort: number;
     gain: number;
 }
@@ -32,9 +32,9 @@ interface PlanActionsEditorProps {
 
 // --- CONFIGURATION VISUELLE ---
 const actionTypeConfig = {
-    simple: { name: 'Action Simple', icon: '💡', color: 'border-blue-500', textColor: 'text-blue-600', barBg: 'bg-blue-500', a3Color: 'bg-blue-100 text-blue-800' },
-    securisation: { name: 'Sécurisation', icon: '🛡️', color: 'border-red-500', textColor: 'text-red-600', barBg: 'bg-red-500', a3Color: 'bg-red-100 text-red-800' },
-    'poka-yoke': { name: 'Poka-Yoke', icon: '🧩', color: 'border-yellow-500', textColor: 'text-yellow-600', barBg: 'bg-yellow-500', a3Color: 'bg-yellow-100 text-yellow-800' },
+    simple: { name: 'Action Simple', icon: '💡', color: 'border-blue-500', textColor: 'text-blue-600', barBg: 'bg-blue-500', a3Color: 'bg-blue-100 text-blue-800', lightBg: 'bg-blue-50' },
+    securisation: { name: 'Sécurisation', icon: '🛡️', color: 'border-red-500', textColor: 'text-red-600', barBg: 'bg-red-500', a3Color: 'bg-red-100 text-red-800', lightBg: 'bg-red-50' },
+    'poka-yoke': { name: 'Poka-Yoke', icon: '🧩', color: 'border-yellow-500', textColor: 'text-yellow-600', barBg: 'bg-yellow-500', a3Color: 'bg-yellow-100 text-yellow-800', lightBg: 'bg-yellow-50' },
 };
 
 
@@ -314,18 +314,23 @@ const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full" onDragEnd={() => setDraggedItem(null)}>
-            {Object.entries(columns).map(([type, items]) => (
-                <div key={type} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg p-4 transition-colors"
-                     onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, type as ActionType)}
-                     onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-50', 'border-blue-300')}
-                     onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300')}>
-                    <h2 className={`font-bold mb-4 px-1 flex items-center gap-2 ${actionTypeConfig[type as ActionType].textColor}`}>
-                        <span className="text-lg">{actionTypeConfig[type as ActionType].icon}</span> {actionTypeConfig[type as ActionType].name}
-                        <span className="text-sm font-normal text-gray-500 ml-auto bg-gray-200 rounded-full px-2">{items.length}</span>
-                    </h2>
-                    <div className="overflow-y-auto flex-1 pr-2">{items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
-                </div>
-            ))}
+            {Object.entries(columns).map(([type, items]) => {
+                const config = actionTypeConfig[type as ActionType];
+                return (
+                    <div key={type} className={`flex flex-col rounded-lg transition-colors ${config.lightBg}`}
+                         onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, type as ActionType)}
+                         onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-50', 'border-blue-300')}
+                         onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300')}>
+                        <h2 className={`font-bold p-4 flex items-center gap-2 ${config.textColor}`}>
+                            <span className="text-lg">{config.icon}</span> {config.name}
+                            <span className="text-sm font-normal text-gray-500 ml-auto bg-gray-200 rounded-full px-2">{items.length}</span>
+                        </h2>
+                        <div className="overflow-y-auto flex-1 px-4 pb-2">
+                            {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
+                        </div>
+                    </div>
+                )
+            })}
         </div>
     );
 };
@@ -343,26 +348,33 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
 
     const handleDrop = (e: React.DragEvent, targetStatus: ActionStatus) => {
         e.preventDefault();
-        (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300');
+        (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-100', 'ring-2', 'ring-blue-300');
         if (!draggedItem || draggedItem.status === targetStatus) return;
         setActions(actions.map(act => act.id === draggedItem.id ? { ...act, status: targetStatus } : act), { ...draggedItem, status: targetStatus });
     };
 
     return (
         <div className="flex flex-col h-full">
-            <div className="mb-4 flex-shrink-0">
-                <select onChange={(e) => setSelectedUser(e.target.value)} value={selectedUser} className="p-2 border bg-white border-gray-300 rounded shadow-sm text-gray-800">
-                    {users.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
-                </select>
+            <div className="mb-6 flex-shrink-0 flex justify-center">
+                <div className="bg-white p-2 rounded-lg shadow-md border flex items-center gap-4">
+                    <label htmlFor="user-select" className="font-semibold text-gray-700">Voir le kanban de :</label>
+                    <select id="user-select" onChange={(e) => setSelectedUser(e.target.value)} value={selectedUser} className="p-2 border bg-white border-gray-300 rounded shadow-sm text-gray-800 focus:ring-2 focus:ring-blue-500">
+                        {users.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
+                    </select>
+                </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
-                {Object.entries(columns).map(([status, items]) => (
-                    <div key={status} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg p-4 transition-colors"
-                         onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status as ActionStatus)}
-                         onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-50', 'border-blue-300')}
-                         onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300')}>
-                        <h2 className="font-bold text-gray-700 mb-4 px-1">{status} <span className="text-sm font-normal text-gray-500">{items.length}</span></h2>
-                        <div className="overflow-y-auto flex-1 pr-2">{items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
+                {(Object.entries(columns) as [ActionStatus, Action[]][]).map(([status, items]) => (
+                    <div key={status} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg transition-colors"
+                         onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)}
+                         onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-100', 'ring-2', 'ring-blue-300')}
+                         onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-100', 'ring-2', 'ring-blue-300')}>
+                        <h2 className={`font-bold p-4 border-b ${status === 'À faire' ? 'text-orange-600' : 'text-green-600'}`}>
+                            {status} <span className="text-sm font-normal text-gray-500 bg-gray-200 rounded-full px-2 py-0.5">{items.length}</span>
+                        </h2>
+                        <div className="overflow-y-auto flex-1 p-4">
+                            {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -397,22 +409,22 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
     };
 
     const Quadrant = ({ title, emoji, items, bgColor, quadrantName }: { title: string, emoji: string, items: Action[], bgColor: string, quadrantName: string }) => (
-        <div className={`rounded-lg p-4 flex flex-col ${bgColor} transition-transform duration-200 hover:scale-105`}
+        <div className={`rounded-lg p-2 flex flex-col ${bgColor}`}
              onDragOver={(e) => e.preventDefault()}
              onDrop={(e) => handleDrop(e, quadrantName)}
              onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('ring-2', 'ring-blue-400')}
              onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('ring-2', 'ring-blue-400')}>
-            <h3 className="font-bold text-center mb-2 text-slate-800">{title} <span className="text-xl">{emoji}</span></h3>
+            <h3 className="font-bold text-center mb-2 text-slate-800 text-sm">{title} <span className="text-lg">{emoji}</span></h3>
             <div className="matrix-quadrant bg-white bg-opacity-40 rounded p-2 overflow-y-auto flex-grow">
-                {items.map(action => <ActionCard key={action.id} action={action} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
+                {items.map(action => <ActionCard key={action.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
             </div>
         </div>
     );
     return (
         <div className="relative p-8 bg-white border border-gray-200 rounded-lg shadow-inner h-full flex flex-col" onDragEnd={() => setDraggedItem(null)}>
-            <div className="absolute top-1/2 -left-6 -translate-y-1/2 -rotate-90 font-bold text-gray-500 tracking-wider">GAIN</div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 font-bold text-gray-500 tracking-wider">EFFORT</div>
-            <div className="grid grid-cols-2 grid-rows-2 gap-4 flex-1">
+            <div className="absolute top-1/2 left-0 -translate-y-1/2 -rotate-90 font-bold text-gray-500 tracking-wider">GAIN</div>
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 font-bold text-gray-500 tracking-wider">EFFORT</div>
+            <div className="grid grid-cols-2 grid-rows-2 gap-4 flex-1 pl-6 pt-6">
                 <Quadrant title="Quick Win" emoji="🔥" items={matrix['quick-wins']} bgColor="bg-green-200" quadrantName="quick-wins" />
                 <Quadrant title="Gros projet" emoji="🗓️" items={matrix['major-projects']} bgColor="bg-blue-200" quadrantName="major-projects" />
                 <Quadrant title="Tâche de fond" emoji="👌" items={matrix['fill-ins']} bgColor="bg-yellow-200" quadrantName="fill-ins" />
@@ -426,16 +438,16 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
     if (actions.length === 0) return <div className="text-center p-8 text-gray-500">Aucune action à afficher.</div>;
 
     const sortedActions = [...actions].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
-    const minTime = Math.min(...sortedActions.map(a => new Date(a.start_date).getTime()));
-    const maxTime = Math.max(...sortedActions.map(a => new Date(a.due_date).getTime()));
     
-    if (!isFinite(minTime) || !isFinite(maxTime)) {
-        return <div className="text-center p-8 text-gray-500">Dates invalides pour le diagramme de Gantt.</div>;
-    }
+    const validActions = sortedActions.filter(a => a.start_date && a.due_date && !isNaN(new Date(a.start_date).getTime()) && !isNaN(new Date(a.due_date).getTime()));
+    if(validActions.length === 0) return <div className="text-center p-8 text-gray-500">Aucune action avec des dates valides.</div>;
 
+    const minTime = Math.min(...validActions.map(a => new Date(a.start_date).getTime()));
+    const maxTime = Math.max(...validActions.map(a => new Date(a.due_date).getTime()));
+    
     const startDate = new Date(minTime);
-    const endDate = new Date(maxTime);
     startDate.setDate(startDate.getDate() - 2);
+    const endDate = new Date(maxTime);
     endDate.setDate(endDate.getDate() + 2);
 
     const totalDays = Math.max(1, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -443,16 +455,36 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
     const getDaysFromStart = (dateStr: string) => (new Date(dateStr).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
     const todayPosition = (getDaysFromStart(new Date().toISOString()) / totalDays) * 100;
 
+    // Generate timeline labels
+    const timelineLabels = [];
+    let currentDay = new Date(startDate);
+    while(currentDay <= endDate) {
+        timelineLabels.push(new Date(currentDay));
+        currentDay.setDate(currentDay.getDate() + 1);
+    }
+    
     return (
         <div className="bg-white border border-gray-200 p-4 rounded-lg shadow-md overflow-x-auto h-full">
-            <div className="relative pt-4" style={{ minWidth: '800px' }}>
+            <div className="relative pt-8" style={{ minWidth: `${totalDays * 40}px` }}>
+                {/* Timeline Axis */}
+                <div className="sticky top-0 bg-white z-20 h-8 flex border-b-2 mb-2">
+                    {timelineLabels.map((day, index) => (
+                        <div key={index} className="flex-1 text-center text-xs text-gray-500 border-r">
+                            {day.getDate() === 1 ? day.toLocaleDateString('fr-FR', { month: 'short' }) : day.getDate()}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Today Marker */}
                 {todayPosition >= 0 && todayPosition <= 100 &&
                     <div className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-10" style={{ left: `${todayPosition}%` }}>
                         <span className="absolute -top-5 -translate-x-1/2 text-xs bg-red-500 text-white px-1 rounded">Auj.</span>
                     </div>
                 }
+
+                {/* Action Bars */}
                 <div className="space-y-3">
-                    {sortedActions.map((action) => {
+                    {validActions.map((action) => {
                         const left = (getDaysFromStart(action.start_date) / totalDays) * 100;
                         const duration = Math.max(1, getDaysFromStart(action.due_date) - getDaysFromStart(action.start_date));
                         const width = (duration / totalDays) * 100;
@@ -463,9 +495,11 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                         return (
                             <div key={action.id} className="w-full h-10 flex items-center">
                                 <div className="w-1/4 pr-4 text-sm font-medium truncate text-gray-700">{action.title}</div>
-                                <div className="w-3/4 h-full relative bg-gray-200 rounded">
+                                <div className="w-3/4 h-full relative">
                                     <Tooltip content={tooltipContent}>
-                                        <div onClick={() => onCardClick(action)} className={`absolute h-3/4 top-1/2 -translate-y-1/2 rounded ${config.barBg} cursor-pointer`} style={{ left: `${left}%`, width: `${width}%` }}></div>
+                                        <div onClick={() => onCardClick(action)} className={`absolute h-3/4 top-1/2 -translate-y-1/2 rounded ${config.barBg} cursor-pointer flex items-center px-2 text-white text-xs font-semibold overflow-hidden`} style={{ left: `${left}%`, width: `${width}%` }}>
+                                          <span className="truncate">{action.title}</span>
+                                        </div>
                                     </Tooltip>
                                 </div>
                             </div>
