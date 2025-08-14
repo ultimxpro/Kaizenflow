@@ -554,6 +554,8 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
 
 // Remplacez votre GanttView par cette version finale avec aimantation
 
+// Remplacez votre GanttView par cette version finale et complète
+
 const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: Action[], users: User[], onUpdateAction: (id: string, updates: Partial<Action>) => void, onCardClick: (action: Action) => void }) => {
   const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week');
   const ganttRef = useRef<HTMLDivElement>(null);
@@ -572,7 +574,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     startX: number;
     originalStartDate: Date;
     originalEndDate: Date;
-    scale: 'day' | 'week' | 'month'; // NOUVEAU: on stocke l'échelle au début du drag
+    scale: 'day' | 'week' | 'month';
   } | null>(null);
 
   const validActions = useMemo(() => actions
@@ -581,30 +583,89 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     [actions]
   );
 
-  // --- Fonctions de calcul (inchangées, je les ai masquées pour la lisibilité) ---
-  const getGanttDateRange = useCallback(() => { /* ... */ }, [validActions]);
-  const { start: ganttStartDate, end: ganttEndDate } = getGanttDateRange();
-  const getISOWeekNumber = (date: Date): number => { /* ... */ };
-  const timelineColumns = useMemo(() => { /* ... */ }, [ganttStartDate, ganttEndDate, ganttScale]);
-  const calculateBarPosition = (action: Action) => { /* ... */ };
+  const getGanttDateRange = useCallback(() => {
+    if (validActions.length === 0) {
+      const today = new Date();
+      const start = new Date(today);
+      start.setDate(today.getDate() - 30);
+      const end = new Date(today);
+      end.setDate(today.getDate() + 60);
+      return { start, end };
+    }
+    const allDates = validActions.flatMap(a => [new Date(a.start_date), new Date(a.due_date)]);
+    const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+    const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+    
+    minDate.setDate(minDate.getDate() - 7);
+    maxDate.setDate(maxDate.getDate() + 14);
+    return { start: minDate, end: maxDate };
+  }, [validActions]);
 
-  // --- NOUVELLE FONCTION UTILITAIRE POUR L'AIMANTATION ---
+  const { start: ganttStartDate, end: ganttEndDate } = getGanttDateRange();
+
+  const getISOWeekNumber = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  };
+  
+  const timelineColumns = useMemo(() => {
+    const columns = [];
+    let current = new Date(ganttStartDate);
+    while (current <= ganttEndDate) {
+      let label = '';
+      let nextDate = new Date(current);
+      switch (ganttScale) {
+        case 'day':
+          label = current.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+          nextDate.setDate(current.getDate() + 1);
+          break;
+        case 'week':
+          label = `S${getISOWeekNumber(current)}`;
+          nextDate.setDate(current.getDate() + 7);
+          break;
+        case 'month':
+          label = current.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+          nextDate.setMonth(current.getMonth() + 1);
+          break;
+      }
+      columns.push({
+        date: new Date(current),
+        label,
+        width: ganttScale === 'day' ? 50 : ganttScale === 'week' ? 80 : 150
+      });
+      current = nextDate;
+    }
+    return columns;
+  }, [ganttStartDate, ganttEndDate, ganttScale]);
+  
+  const calculateBarPosition = (action: Action) => {
+    const totalDuration = ganttEndDate.getTime() - ganttStartDate.getTime();
+    if (totalDuration <= 0) return { left: 0, width: 0 };
+    
+    const actionStart = new Date(action.start_date).getTime();
+    const actionEnd = new Date(action.due_date).getTime();
+    const startOffset = actionStart - ganttStartDate.getTime();
+    const actionDuration = actionEnd - actionStart;
+    const left = (startOffset / totalDuration) * 100;
+    const width = (actionDuration / totalDuration) * 100;
+    return { left: Math.max(0, left), width: Math.max(0.5, width) };
+  };
+
   const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month') => {
     const newDate = new Date(date);
-    newDate.setHours(0, 0, 0, 0); // Base commune : on annule les heures/minutes
-
+    newDate.setHours(0, 0, 0, 0);
     switch (scale) {
       case 'day':
-        // Déjà fait avec setHours(0,0,0,0)
         break;
       case 'week':
-        // Ramène au Lundi de la semaine
         const day = newDate.getDay();
-        const diff = newDate.getDate() - day + (day === 0 ? -6 : 1); // Si Dimanche (0), reculer de 6 jours, sinon aller au Lundi (1)
+        const diff = newDate.getDate() - day + (day === 0 ? -6 : 1);
         newDate.setDate(diff);
         break;
       case 'month':
-        // Ramène au 1er du mois
         newDate.setDate(1);
         break;
     }
@@ -616,70 +677,193 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     e.stopPropagation();
     const action = validActions.find(a => a.id === actionId);
     if (!action) return;
-
     setDragState({
       actionId,
       mode,
       startX: e.clientX,
       originalStartDate: new Date(action.start_date),
       originalEndDate: new Date(action.due_date),
-      scale: ganttScale, // On sauvegarde l'échelle active
+      scale: ganttScale,
     });
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragState || !ganttRef.current) return;
-      
       const rect = ganttRef.current.getBoundingClientRect();
+      if (rect.width === 0) return;
       const totalTime = ganttEndDate.getTime() - ganttStartDate.getTime();
       const pixelToTime = totalTime / rect.width;
       const deltaX = e.clientX - dragState.startX;
       const deltaTime = deltaX * pixelToTime;
-
       let newStartDate = new Date(dragState.originalStartDate);
       let newEndDate = new Date(dragState.originalEndDate);
-
       if (dragState.mode === 'move') {
         newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
         newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
       } else if (dragState.mode === 'resize-right') {
         newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
       }
-
-      // --- C'EST ICI QUE L'AIMANTATION A LIEU ---
       newStartDate = snapDateToScale(newStartDate, dragState.scale);
       newEndDate = snapDateToScale(newEndDate, dragState.scale);
-      
       if (newEndDate <= newStartDate) {
-          newEndDate.setDate(newStartDate.getDate() + (dragState.scale === 'week' ? 7 : 1));
+          const minDuration = dragState.scale === 'week' ? 7 : 1;
+          newEndDate.setDate(newStartDate.getDate() + minDuration);
       }
-
       onUpdateAction(dragState.actionId, {
         start_date: newStartDate.toISOString().split('T')[0],
         due_date: newEndDate.toISOString().split('T')[0],
       });
     };
 
-    const handleMouseUp = (e: MouseEvent) => { /* ... (code inchangé) ... */ };
-    
-    if (dragState) { /* ... (code inchangé) ... */ }
-    return () => { /* ... (code inchangé) ... */ };
+    const handleMouseUp = () => {
+      if (!dragState) return;
+      const action = validActions.find(a => a.id === dragState.actionId);
+      if (!action) {
+        setDragState(null);
+        return;
+      };
+      const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
+      const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
+      if (action.start_date !== originalStartDateStr || action.due_date !== originalEndDateStr) {
+        setConfirmationModal({
+          action: action,
+          newStartDate: action.start_date,
+          newEndDate: action.due_date,
+          originalStartDate: originalStartDateStr,
+          originalEndDate: originalEndDateStr
+        });
+      }
+      setDragState(null);
+    };
+
+    if (dragState) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
   }, [dragState, onUpdateAction, validActions, ganttStartDate, ganttEndDate]);
 
-  const handleConfirm = () => { /* ... (code inchangé) ... */ };
-  const handleCancel = () => { /* ... (code inchangé) ... */ };
+  const handleConfirm = () => {
+    if (!confirmationModal) return;
+    setConfirmationModal(null);
+  };
 
-  // --- Rendu du composant (JSX, inchangé) ---
-  if (validActions.length === 0) { /* ... */ }
+  const handleCancel = () => {
+    if (!confirmationModal) return;
+    onUpdateAction(confirmationModal.action.id, {
+      start_date: confirmationModal.originalStartDate,
+      due_date: confirmationModal.originalEndDate,
+    });
+    setConfirmationModal(null);
+  };
+
+  if (validActions.length === 0) {
+    return (
+        <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
+            <GanttChartSquare className="w-16 h-16 mb-4 text-gray-300" />
+            <h3 className="text-lg font-semibold mb-2">Aucune action planifiée</h3>
+            <p className="text-sm">Créez des actions avec des dates pour voir le Gantt.</p>
+        </div>
+    );
+  }
+
   const totalWidth = timelineColumns.reduce((acc, col) => acc + col.width, 0);
 
   return (
-    <div className="h-full flex flex-col ...">
-        {/* ... Tout le JSX reste identique ... */}
-        {/* La popup de confirmation est toujours là, à la fin */}
+    <div className="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+            <h3 className="text-lg font-semibold text-gray-900">Diagramme de Gantt</h3>
+            <div className="flex items-center gap-1 bg-white border border-gray-200 p-1 rounded-lg">
+                <button onClick={() => setGanttScale('day')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'day' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Jour</button>
+                <button onClick={() => setGanttScale('week')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'week' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Semaine</button>
+                <button onClick={() => setGanttScale('month')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'month' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Mois</button>
+            </div>
+        </div>
+
+        <div className="flex-1 overflow-auto">
+            <div className="grid" style={{ gridTemplateColumns: '250px 1fr' }}>
+                <div className="sticky top-0 bg-gray-100 border-r border-b border-gray-200 z-20">
+                    <div className="h-12 flex items-center px-4 font-semibold text-gray-700">Action</div>
+                </div>
+                <div className="sticky top-0 bg-gray-100 border-b border-gray-200 z-20">
+                    <div className="relative flex" style={{ width: `${totalWidth}px` }}>
+                        {timelineColumns.map((col, index) => (
+                            <div key={index} className="flex-shrink-0 text-center py-3 border-r border-gray-200" style={{ width: `${col.width}px` }}>
+                                <span className="text-xs font-medium text-gray-600">{col.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="border-r border-gray-200">
+                    {validActions.map(action => {
+                         const config = actionTypeConfig[action.type];
+                         return(
+                            <div key={action.id} className={`h-12 flex items-center px-4 border-b border-gray-100 border-l-4 ${config.color}`}>
+                                <p className="text-sm font-medium text-gray-800 truncate" title={action.title}>{action.title}</p>
+                            </div>
+                         )
+                    })}
+                </div>
+                
+                <div ref={ganttRef} className="relative overflow-hidden" style={{ width: `${totalWidth}px` }}>
+                    {timelineColumns.map((col, index, arr) => (
+                        <div key={index} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: `${arr.slice(0, index).reduce((acc, c) => acc + c.width, 0) + col.width}px`, zIndex: 1 }}></div>
+                    ))}
+                    
+                    {validActions.map((action, index) => {
+                        const { left, width } = calculateBarPosition(action);
+                        const config = actionTypeConfig[action.type];
+                        const startDate = new Date(action.start_date);
+                        const endDate = new Date(action.due_date);
+                        const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+                        return (
+                            <div key={action.id} className="absolute h-8 flex items-center group" style={{ top: `${index * 48 + 8}px`, left: `${left}%`, width: `${width}%`, zIndex: 10 }}>
+                                <div
+                                    className={`w-full h-full ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative transition-all group-hover:opacity-90`}
+                                    onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
+                                    onClick={() => onCardClick(action)}
+                                >
+                                    <p className="text-xs font-semibold text-white truncate">{action.title}</p>
+                                    <span className="text-xs text-white/80 font-mono ml-2">{duration}j</span>
+                                    <div 
+                                      className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
+                                      onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
+                                    />
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+
         {confirmationModal && (
-            <div className="absolute inset-0 ...">...</div>
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-bold text-gray-800">Confirmer le changement ?</h3>
+              <p className="text-sm text-gray-600 mt-2">
+                L'échéance de l'action <strong className="text-blue-600">{confirmationModal.action.title}</strong> va être modifiée.
+              </p>
+              <div className="text-xs mt-4 space-y-1">
+                  <p>Date d'origine : {new Date(confirmationModal.originalStartDate + 'T00:00:00').toLocaleDateString('fr-FR')} → {new Date(confirmationModal.originalEndDate + 'T00:00:00').toLocaleDateString('fr-FR')}</p>
+                  <p className="font-bold">Nouvelle date : {new Date(confirmationModal.newStartDate + 'T00:00:00').toLocaleDateString('fr-FR')} → {new Date(confirmationModal.newEndDate + 'T00:00:00').toLocaleDateString('fr-FR')}</p>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={handleCancel} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 font-semibold">
+                  Annuler
+                </button>
+                <button onClick={handleConfirm} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold">
+                  Confirmer
+                </button>
+              </div>
+            </div>
+          </div>
         )}
     </div>
   );
