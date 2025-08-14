@@ -37,6 +37,12 @@ const actionTypeConfig = {
     'poka-yoke': { name: 'Poka-Yoke', icon: '🧩', color: 'border-yellow-500', textColor: 'text-yellow-600', barBg: 'bg-yellow-500', a3Color: 'bg-yellow-100 text-yellow-800', lightBg: 'bg-yellow-50' },
 };
 
+const getQuadrant = (gain: number, effort: number) => {
+        if (gain >= 5 && effort < 5) return { name: "Quick Win 🔥", color: "bg-green-200" };
+        if (gain >= 5 && effort >= 5) return { name: "Gros projet 🗓️", color: "bg-blue-200" };
+        if (gain < 5 && effort < 5) return { name: "Tâche de fond 👌", color: "bg-yellow-200" };
+        return { name: "À éviter 🤔", color: "bg-red-200" };
+    };
 
 // --- COMPOSANTS UTILITAIRES ---
 const Tooltip = ({ content, children }: { content: string, children: React.ReactNode }) => (
@@ -241,12 +247,7 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
         });
     };
 
-    const getQuadrant = (gain: number, effort: number) => {
-        if (gain >= 5 && effort < 5) return { name: "Quick Win 🔥", color: "bg-green-200" };
-        if (gain >= 5 && effort >= 5) return { name: "Gros projet 🗓️", color: "bg-blue-200" };
-        if (gain < 5 && effort < 5) return { name: "Tâche de fond 👌", color: "bg-yellow-200" };
-        return { name: "À éviter 🤔", color: "bg-red-200" };
-    };
+    
     const currentQuadrant = getQuadrant(formData.gain || 5, formData.effort || 5);
 
     return (
@@ -618,8 +619,14 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
 
 // Remplacez votre GanttView par cette version finale et complète
 
-const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: Action[], users: User[], onUpdateAction: (id: string, updates: Partial<Action>) => void, onCardClick: (action: Action) => void }) => {
-  const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week');
+const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, setGanttScale }: { 
+    actions: Action[], 
+    users: User[], 
+    onUpdateAction: (id: string, updates: Partial<Action>) => void, 
+    onCardClick: (action: Action) => void,
+    ganttScale: 'day' | 'week' | 'month',
+    setGanttScale: (scale: 'day' | 'week' | 'month') => void
+}) => {
   const ganttRef = useRef<HTMLDivElement>(null);
   
   const [confirmationModal, setConfirmationModal] = useState<{
@@ -657,7 +664,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     const allDates = validActions.flatMap(a => [new Date(a.start_date), new Date(a.due_date)]);
     const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
-    
     minDate.setDate(minDate.getDate() - 7);
     maxDate.setDate(maxDate.getDate() + 14);
     return { start: minDate, end: maxDate };
@@ -677,27 +683,13 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     const columns = [];
     let current = new Date(ganttStartDate);
     while (current <= ganttEndDate) {
-      let label = '';
-      let nextDate = new Date(current);
+      let label = '', nextDate = new Date(current);
       switch (ganttScale) {
-        case 'day':
-          label = current.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-          nextDate.setDate(current.getDate() + 1);
-          break;
-        case 'week':
-          label = `S${getISOWeekNumber(current)}`;
-          nextDate.setDate(current.getDate() + 7);
-          break;
-        case 'month':
-          label = current.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-          nextDate.setMonth(current.getMonth() + 1);
-          break;
+        case 'day': label = current.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); nextDate.setDate(current.getDate() + 1); break;
+        case 'week': label = `S${getISOWeekNumber(current)}`; nextDate.setDate(current.getDate() + 7); break;
+        case 'month': label = current.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }); nextDate.setMonth(current.getMonth() + 1); break;
       }
-      columns.push({
-        date: new Date(current),
-        label,
-        width: ganttScale === 'day' ? 50 : ganttScale === 'week' ? 80 : 150
-      });
+      columns.push({ date: new Date(current), label, width: ganttScale === 'day' ? 50 : ganttScale === 'week' ? 80 : 150 });
       current = nextDate;
     }
     return columns;
@@ -706,7 +698,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
   const calculateBarPosition = (action: Action) => {
     const totalDuration = ganttEndDate.getTime() - ganttStartDate.getTime();
     if (totalDuration <= 0) return { left: 0, width: 0 };
-    
     const actionStart = new Date(action.start_date).getTime();
     const actionEnd = new Date(action.due_date).getTime();
     const startOffset = actionStart - ganttStartDate.getTime();
@@ -720,29 +711,18 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     const newDate = new Date(date);
     newDate.setHours(0, 0, 0, 0);
     switch (scale) {
-      case 'day':
-        break;
-      case 'week':
-        const day = newDate.getDay();
-        const diff = newDate.getDate() - day + (day === 0 ? -6 : 1);
-        newDate.setDate(diff);
-        break;
-      case 'month':
-        newDate.setDate(1);
-        break;
+      case 'week': const day = newDate.getDay(); const diff = newDate.getDate() - day + (day === 0 ? -6 : 1); newDate.setDate(diff); break;
+      case 'month': newDate.setDate(1); break;
     }
     return newDate;
   };
 
   const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right') => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     const action = validActions.find(a => a.id === actionId);
     if (!action) return;
     setDragState({
-      actionId,
-      mode,
-      startX: e.clientX,
+      actionId, mode, startX: e.clientX,
       originalStartDate: new Date(action.start_date),
       originalEndDate: new Date(action.due_date),
       scale: ganttScale,
@@ -751,69 +731,54 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!dragState || !ganttRef.current) return;
-      const rect = ganttRef.current.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const totalTime = ganttEndDate.getTime() - ganttStartDate.getTime();
-      const pixelToTime = totalTime / rect.width;
-      const deltaX = e.clientX - dragState.startX;
-      const deltaTime = deltaX * pixelToTime;
-      let newStartDate = new Date(dragState.originalStartDate);
-      let newEndDate = new Date(dragState.originalEndDate);
-      if (dragState.mode === 'move') {
-        newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
-        newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-      } else if (dragState.mode === 'resize-right') {
-        newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-      }
-      newStartDate = snapDateToScale(newStartDate, dragState.scale);
-      newEndDate = snapDateToScale(newEndDate, dragState.scale);
-      if (newEndDate <= newStartDate) {
-          const minDuration = dragState.scale === 'week' ? 7 : 1;
-          newEndDate.setDate(newStartDate.getDate() + minDuration);
-      }
-      onUpdateAction(dragState.actionId, {
-        start_date: newStartDate.toISOString().split('T')[0],
-        due_date: newEndDate.toISOString().split('T')[0],
-      });
-    };
-
-    const handleMouseUp = () => {
-      if (!dragState) return;
-      const action = validActions.find(a => a.id === dragState.actionId);
-      if (!action) {
-        setDragState(null);
-        return;
-      };
-      const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
-      const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
-      if (action.start_date !== originalStartDateStr || action.due_date !== originalEndDateStr) {
-        setConfirmationModal({
-          action: action,
-          newStartDate: action.start_date,
-          newEndDate: action.due_date,
-          originalStartDate: originalStartDateStr,
-          originalEndDate: originalEndDateStr
+        if (!dragState || !ganttRef.current) return;
+        const rect = ganttRef.current.getBoundingClientRect();
+        if (rect.width === 0) return;
+        const totalTime = ganttEndDate.getTime() - ganttStartDate.getTime();
+        const pixelToTime = totalTime / rect.width;
+        const deltaX = e.clientX - dragState.startX;
+        const deltaTime = deltaX * pixelToTime;
+        let newStartDate = new Date(dragState.originalStartDate);
+        let newEndDate = new Date(dragState.originalEndDate);
+        if (dragState.mode === 'move') {
+            newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
+            newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
+        } else if (dragState.mode === 'resize-right') {
+            newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
+        }
+        newStartDate = snapDateToScale(newStartDate, dragState.scale);
+        newEndDate = snapDateToScale(newEndDate, dragState.scale);
+        if (newEndDate <= newStartDate) {
+            const minDuration = dragState.scale === 'week' ? 7 : 1;
+            newEndDate.setDate(newStartDate.getDate() + minDuration);
+        }
+        onUpdateAction(dragState.actionId, {
+            start_date: newStartDate.toISOString().split('T')[0],
+            due_date: newEndDate.toISOString().split('T')[0],
         });
-      }
-      setDragState(null);
     };
-
+    const handleMouseUp = () => {
+        if (!dragState) return;
+        const action = validActions.find(a => a.id === dragState.actionId);
+        if (!action) { setDragState(null); return; };
+        const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
+        const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
+        if (action.start_date !== originalStartDateStr || action.due_date !== originalEndDateStr) {
+            setConfirmationModal({ action, newStartDate: action.start_date, newEndDate: action.due_date, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
+        }
+        setDragState(null);
+    };
     if (dragState) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
     }
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [dragState, onUpdateAction, validActions, ganttStartDate, ganttEndDate]);
 
-  const handleConfirm = () => {
-    if (!confirmationModal) return;
-    setConfirmationModal(null);
-  };
-
+  const handleConfirm = () => setConfirmationModal(null);
   const handleCancel = () => {
     if (!confirmationModal) return;
     onUpdateAction(confirmationModal.action.id, {
@@ -822,13 +787,25 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     });
     setConfirmationModal(null);
   };
+  
+  const formatDuration = (days: number) => {
+      if (days >= 28 && days % 7 === 0) {
+        const months = Math.round(days / 30);
+        return `${months} mois`;
+      }
+      if (days >= 7 && days % 7 === 0) {
+        const weeks = days / 7;
+        return `${weeks} sem.`;
+      }
+      return `${days}j`;
+  };
 
   if (validActions.length === 0) {
     return (
         <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
             <GanttChartSquare className="w-16 h-16 mb-4 text-gray-300" />
             <h3 className="text-lg font-semibold mb-2">Aucune action planifiée</h3>
-            <p className="text-sm">Créez des actions avec des dates pour voir le Gantt.</p>
+            <p className="text-sm">Créez des actions pour voir le Gantt.</p>
         </div>
     );
   }
@@ -847,7 +824,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
         </div>
 
         <div className="flex-1 overflow-auto">
-            <div className="grid" style={{ gridTemplateColumns: '250px 1fr' }}>
+            <div className="grid" style={{ gridTemplateColumns: '300px 1fr' }}>
                 <div className="sticky top-0 bg-gray-100 border-r border-b border-gray-200 z-20">
                     <div className="h-12 flex items-center px-4 font-semibold text-gray-700">Action</div>
                 </div>
@@ -863,16 +840,20 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
 
                 <div className="border-r border-gray-200">
                     {validActions.map(action => {
-                         const config = actionTypeConfig[action.type];
+                         const quadrant = getQuadrant(action.gain, action.effort);
                          return(
-                            <div key={action.id} className={`h-12 flex items-center px-4 border-b border-gray-100 border-l-4 ${config.color}`}>
-                                <p className="text-sm font-medium text-gray-800 truncate" title={action.title}>{action.title}</p>
+                            <div key={action.id} className="h-12 flex flex-col justify-center px-4 border-b border-gray-100">
+                                <div className="flex items-center gap-2">
+                                    <AssigneeAvatars assignee_ids={action.assignee_ids} users={users} />
+                                    <p className="text-sm font-medium text-gray-800 truncate" title={action.title}>{action.title}</p>
+                                </div>
+                                <div className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 w-fit ${quadrant.color} ${quadrant.textColor}`}>{quadrant.name}</div>
                             </div>
                          )
                     })}
                 </div>
                 
-                <div ref={ganttRef} className="relative overflow-hidden" style={{ width: `${totalWidth}px` }}>
+                <div ref={ganttRef} className="relative">
                     {timelineColumns.map((col, index, arr) => (
                         <div key={index} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: `${arr.slice(0, index).reduce((acc, c) => acc + c.width, 0) + col.width}px`, zIndex: 1 }}></div>
                     ))}
@@ -883,21 +864,41 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
                         const startDate = new Date(action.start_date);
                         const endDate = new Date(action.due_date);
                         const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        const isCompleted = action.status === 'Fait';
+                        
+                        const quadrant = getQuadrant(action.gain, action.effort);
+                        const tooltipContent = `
+                            <div class="text-left p-1">
+                                <div class="font-bold text-base mb-2">${action.title}</div>
+                                <div class="text-xs text-gray-300 mb-2">
+                                    ${new Date(action.start_date + 'T00:00:00').toLocaleDateString('fr-FR')} → ${new Date(action.due_date + 'T00:00:00').toLocaleDateString('fr-FR')}
+                                </div>
+                                <div class="flex items-center gap-2 mb-2">
+                                     ${(action.assignee_ids.map(id => users.find(u => u.id === id)).filter(Boolean).map(u => `<img src="${u.avatarUrl || `https://i.pravatar.cc/150?u=${u.id}`}" class="w-6 h-6 rounded-full border-2 border-gray-500" />`)).join('')}
+                                </div>
+                                <div class="text-xs font-semibold px-2 py-1 rounded-full w-fit" style="background-color: ${quadrant.color.replace('bg-','').replace('-100','')}; color: ${quadrant.textColor.replace('text-','').replace('-800','')}">${quadrant.name}</div>
+                            </div>
+                        `;
 
                         return (
-                            <div key={action.id} className="absolute h-8 flex items-center group" style={{ top: `${index * 48 + 8}px`, left: `${left}%`, width: `${width}%`, zIndex: 10 }}>
-                                <div
-                                    className={`w-full h-full ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative transition-all group-hover:opacity-90`}
-                                    onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
-                                    onClick={() => onCardClick(action)}
-                                >
-                                    <p className="text-xs font-semibold text-white truncate">{action.title}</p>
-                                    <span className="text-xs text-white/80 font-mono ml-2">{duration}j</span>
-                                    <div 
-                                      className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
-                                      onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
-                                    />
-                                </div>
+                            <div key={action.id} className="absolute h-12 flex items-center" style={{ top: `${index * 48}px`, left: `${left}%`, width: `${width}%`, zIndex: 10 }}>
+                                <Tooltip content={tooltipContent}>
+                                    <div
+                                        className={`w-full h-8 ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative transition-all group-hover:brightness-110 ${isCompleted ? 'opacity-60' : ''}`}
+                                        onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
+                                        onDoubleClick={() => onCardClick(action)}
+                                    >
+                                        <p className="text-xs font-semibold text-white truncate">
+                                            {isCompleted && '✅ '}
+                                            {action.title}
+                                        </p>
+                                        <span className="text-xs text-white/80 font-mono ml-2">{formatDuration(duration)}</span>
+                                        <div 
+                                          className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
+                                          onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
+                                        />
+                                    </div>
+                                </Tooltip>
                             </div>
                         )
                     })}
