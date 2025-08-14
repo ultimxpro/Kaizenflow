@@ -326,7 +326,7 @@ const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action
                             <span className="text-sm font-normal text-gray-500 ml-auto bg-gray-200 rounded-full px-2">{items.length}</span>
                         </h2>
                         <div className="overflow-y-auto flex-1 px-4 pb-2">
-                            {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
+                            {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, action) => setDraggedItem(action)} onClick={onCardClick} />)}
                         </div>
                     </div>
                 )
@@ -373,7 +373,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
                             {status} <span className="text-sm font-normal text-gray-500 bg-gray-200 rounded-full px-2 py-0.5">{items.length}</span>
                         </h2>
                         <div className="overflow-y-auto flex-1 p-4">
-                            {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
+                            {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, action) => setDraggedItem(action)} onClick={onCardClick} />)}
                         </div>
                     </div>
                 ))}
@@ -416,7 +416,7 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
              onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('ring-2', 'ring-blue-400')}>
             <h3 className="font-bold text-center mb-2 text-slate-800 text-sm">{title} <span className="text-lg">{emoji}</span></h3>
             <div className="matrix-quadrant bg-white bg-opacity-40 rounded p-2 overflow-y-auto flex-grow">
-                {items.map(action => <ActionCard key={action.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
+                {items.map(action => <ActionCard key={action.id} action={action} users={users} onDragStart={(e, act) => setDraggedItem(act)} onClick={onCardClick} />)}
             </div>
         </div>
     );
