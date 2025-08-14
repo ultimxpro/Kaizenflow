@@ -313,7 +313,7 @@ const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full" onDragEnd={() => setDraggedItem(null)}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full overflow-hidden" onDragEnd={() => setDraggedItem(null)}>
             {Object.entries(columns).map(([type, items]) => {
                 const config = actionTypeConfig[type as ActionType];
                 return (
@@ -325,7 +325,7 @@ const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action
                             <span className="text-lg">{config.icon}</span> {config.name}
                             <span className="text-sm font-normal text-gray-500 ml-auto bg-gray-200 rounded-full px-2">{items.length}</span>
                         </h2>
-                        <div className="overflow-y-auto flex-1 px-4 pb-2">
+                        <div className="overflow-y-auto flex-1 px-4 pb-2 min-h-0">
                             {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, action) => setDraggedItem(action)} onClick={onCardClick} />)}
                         </div>
                     </div>
@@ -354,7 +354,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full overflow-hidden">
             <div className="mb-6 flex-shrink-0 flex justify-center">
                 <div className="bg-white p-2 rounded-lg shadow-md border flex items-center gap-4">
                     <label htmlFor="user-select" className="font-semibold text-gray-700">Voir le kanban de :</label>
@@ -363,7 +363,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
                     </select>
                 </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden" onDragEnd={() => setDraggedItem(null)}>
                 {(Object.entries(columns) as [ActionStatus, Action[]][]).map(([status, items]) => (
                     <div key={status} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg transition-colors"
                          onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)}
@@ -372,7 +372,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
                         <h2 className={`font-bold p-4 border-b ${status === 'À faire' ? 'text-orange-600' : 'text-green-600'}`}>
                             {status} <span className="text-sm font-normal text-gray-500 bg-gray-200 rounded-full px-2 py-0.5">{items.length}</span>
                         </h2>
-                        <div className="overflow-y-auto flex-1 p-4">
+                        <div className="overflow-y-auto flex-1 p-4 min-h-0">
                             {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, action) => setDraggedItem(action)} onClick={onCardClick} />)}
                         </div>
                     </div>
@@ -415,16 +415,16 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
              onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('ring-2', 'ring-blue-400')}
              onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('ring-2', 'ring-blue-400')}>
             <h3 className="font-bold text-center mb-2 text-slate-800 text-sm">{title} <span className="text-lg">{emoji}</span></h3>
-            <div className="matrix-quadrant bg-white bg-opacity-40 rounded p-2 overflow-y-auto flex-grow">
+            <div className="matrix-quadrant bg-white bg-opacity-40 rounded p-2 overflow-y-auto flex-grow min-h-0">
                 {items.map(action => <ActionCard key={action.id} action={action} users={users} onDragStart={(e, act) => setDraggedItem(act)} onClick={onCardClick} />)}
             </div>
         </div>
     );
     return (
-        <div className="relative p-8 bg-white border border-gray-200 rounded-lg shadow-inner h-full flex flex-col" onDragEnd={() => setDraggedItem(null)}>
+        <div className="relative p-8 bg-white border border-gray-200 rounded-lg shadow-inner h-full flex flex-col overflow-hidden" onDragEnd={() => setDraggedItem(null)}>
             <div className="absolute top-1/2 left-0 -translate-y-1/2 -rotate-90 font-bold text-gray-500 tracking-wider">GAIN</div>
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 font-bold text-gray-500 tracking-wider">EFFORT</div>
-            <div className="grid grid-cols-2 grid-rows-2 gap-4 flex-1 pl-6 pt-6">
+            <div className="grid grid-cols-2 grid-rows-2 gap-4 flex-1 pl-6 pt-6 min-h-0">
                 <Quadrant title="Quick Win" emoji="🔥" items={matrix['quick-wins']} bgColor="bg-green-200" quadrantName="quick-wins" />
                 <Quadrant title="Gros projet" emoji="🗓️" items={matrix['major-projects']} bgColor="bg-blue-200" quadrantName="major-projects" />
                 <Quadrant title="Tâche de fond" emoji="👌" items={matrix['fill-ins']} bgColor="bg-yellow-200" quadrantName="fill-ins" />
