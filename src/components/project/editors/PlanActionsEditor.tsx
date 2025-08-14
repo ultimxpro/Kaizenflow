@@ -626,19 +626,62 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
         return new Date(mondayOfWeek1.getTime() + (week - 1) * 7 * 86400000);
     };
 
+    // Fonction pour calculer le numéro de semaine ISO 8601
+    const getISOWeekNumber = (date: Date) => {
+        const target = new Date(date.valueOf());
+        const dayNumber = (date.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNumber + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) {
+            target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+        }
+        return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+    };
+
+    // Fonction pour calculer l'année ISO de la semaine
+    const getISOWeekYear = (date: Date) => {
+        const target = new Date(date.valueOf());
+        const dayNumber = (date.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNumber + 3);
+        return target.getFullYear();
+    };
+
     // Calcul des unités et largeur
     const getTimeUnits = () => {
         const units = [];
         let current = new Date(startDate);
         
         while (current <= endDate) {
-            units.push(new Date(current));
-            
             if (scale === 'day') {
+                // Format: "Lun 15 Jan 2024"
+                const dayName = current.toLocaleDateString('fr-FR', { weekday: 'short' });
+                const day = current.getDate();
+                const month = current.toLocaleDateString('fr-FR', { month: 'short' });
+                const year = current.getFullYear();
+                units.push({
+                    date: new Date(current),
+                    label: `${dayName} ${day} ${month} ${year}`
+                });
                 current.setDate(current.getDate() + 1);
             } else if (scale === 'week') {
-                current.setDate(current.getDate() + 7);
-            } else {
+                // Calcul du numéro de semaine ISO 8601
+                const weekNumber = getISOWeekNumber(current);
+                const year = getISOWeekYear(current);
+                units.push({
+                    date: new Date(current),
+                    label: `S${weekNumber} ${year}`
+                });
+                // Aller au lundi suivant
+                const daysToAdd = 7 - (current.getDay() === 0 ? 7 : current.getDay()) + 1;
+                current.setDate(current.getDate() + daysToAdd);
+            } else if (scale === 'month') {
+                const month = current.toLocaleDateString('fr-FR', { month: 'long' });
+                const year = current.getFullYear();
+                units.push({
+                    date: new Date(current),
+                    label: `${month} ${year}`
+                });
                 current.setMonth(current.getMonth() + 1);
             }
         }
@@ -653,28 +696,31 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
         const actionStart = new Date(action.start_date);
         const actionEnd = new Date(action.due_date);
         
+        // Calcul de la position de début
         let startPos = 0;
-        let endPos = 0;
+        let width = 0;
         
         if (scale === 'day') {
-            startPos = (actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-            endPos = (actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+            // Calcul en jours
+            const startDiff = Math.floor((actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const endDiff = Math.ceil((actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            startPos = (startDiff / timeUnits.length) * 100;
+            width = Math.max(((endDiff - startDiff) / timeUnits.length) * 100, 1);
         } else if (scale === 'week') {
-            startPos = (actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7);
-            endPos = (actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7);
-        } else {
-            const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
-            const actionStartMonth = actionStart.getFullYear() * 12 + actionStart.getMonth();
-            const actionEndMonth = actionEnd.getFullYear() * 12 + actionEnd.getMonth();
-            
-            startPos = actionStartMonth - startMonth;
-            endPos = actionEndMonth - startMonth + 1;
+            // Calcul en semaines
+            const startWeek = Math.floor((actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            const endWeek = Math.ceil((actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            startPos = (startWeek / timeUnits.length) * 100;
+            width = Math.max(((endWeek - startWeek) / timeUnits.length) * 100, 1);
+        } else if (scale === 'month') {
+            // Calcul en mois
+            const startMonth = (actionStart.getFullYear() - startDate.getFullYear()) * 12 + (actionStart.getMonth() - startDate.getMonth());
+            const endMonth = (actionEnd.getFullYear() - startDate.getFullYear()) * 12 + (actionEnd.getMonth() - startDate.getMonth());
+            startPos = (startMonth / timeUnits.length) * 100;
+            width = Math.max(((endMonth - startMonth + 1) / timeUnits.length) * 100, 1);
         }
         
-        return {
-            left: Math.max(0, startPos * unitWidth),
-            width: Math.max(unitWidth * 0.1, (endPos - startPos) * unitWidth)
-        };
+        return { left: `${startPos}%`, width: `${width}%` };
     };
 
     const formatTimeUnit = (date: Date) => {
@@ -715,45 +761,93 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
 
     const handleMouseMove = (e: React.MouseEvent) => {
         if (!dragState.actionId || !dragState.mode) return;
-
-        const deltaX = e.clientX - dragState.startX;
-        const unitWidth = scale === 'day' ? 40 : scale === 'week' ? 80 : 120;
+        e.preventDefault();
         
-        let unitsToMove = Math.round(deltaX / unitWidth);
-        let newStartDate = new Date(dragState.originalStart);
-        let newEndDate = new Date(dragState.originalEnd);
-
-        switch (scale) {
-            case 'day':
-                if (dragState.mode === 'move') {
-                    newStartDate.setDate(newStartDate.getDate() + unitsToMove);
-                    newEndDate.setDate(newEndDate.getDate() + unitsToMove);
-                } else if (dragState.mode === 'resize-end') {
-                    newEndDate.setDate(newEndDate.getDate() + unitsToMove);
-                } else if (dragState.mode === 'resize-start') {
-                    newStartDate.setDate(newStartDate.getDate() + unitsToMove);
+        const deltaX = e.clientX - dragState.startX;
+        const timelineContainer = document.querySelector('.timeline-container');
+        if (!timelineContainer) return;
+        
+        const containerWidth = timelineContainer.clientWidth;
+        const deltaPercent = (deltaX / containerWidth) * 100;
+        
+        const action = actions.find(a => a.id === dragState.actionId);
+        if (!action) return;
+        
+        const currentStart = new Date(action.start_date);
+        const currentEnd = new Date(action.due_date);
+        
+        let newStartDate = new Date(currentStart);
+        let newEndDate = new Date(currentEnd);
+        
+        // Calcul du changement selon l'échelle
+        if (scale === 'day') {
+            const totalDays = timeUnits.length;
+            const daysDelta = Math.round((deltaPercent / 100) * totalDays);
+            
+            if (dragState.mode === 'move') {
+                newStartDate.setDate(newStartDate.getDate() + daysDelta);
+                newEndDate.setDate(newEndDate.getDate() + daysDelta);
+            } else if (dragState.mode === 'resize-start') {
+                newStartDate = new Date(currentStart);
+                newStartDate.setDate(currentStart.getDate() + daysDelta);
+                // Vérifier que la nouvelle date de début n'est pas après la date de fin
+                if (newStartDate >= currentEnd) {
+                    newStartDate = new Date(currentEnd);
+                    newStartDate.setDate(currentEnd.getDate() - 1);
                 }
-                break;
-            case 'week':
-                if (dragState.mode === 'move') {
-                    newStartDate.setDate(newStartDate.getDate() + (unitsToMove * 7));
-                    newEndDate.setDate(newEndDate.getDate() + (unitsToMove * 7));
-                } else if (dragState.mode === 'resize-end') {
-                    newEndDate.setDate(newEndDate.getDate() + (unitsToMove * 7));
-                } else if (dragState.mode === 'resize-start') {
-                    newStartDate.setDate(newStartDate.getDate() + (unitsToMove * 7));
+            } else if (dragState.mode === 'resize-end') {
+                newEndDate = new Date(currentEnd);
+                newEndDate.setDate(currentEnd.getDate() + daysDelta);
+                // Vérifier que la nouvelle date de fin n'est pas avant la date de début
+                if (newEndDate <= currentStart) {
+                    newEndDate = new Date(currentStart);
+                    newEndDate.setDate(currentStart.getDate() + 1);
                 }
-                break;
-            case 'month':
-                if (dragState.mode === 'move') {
-                    newStartDate.setMonth(newStartDate.getMonth() + unitsToMove);
-                    newEndDate.setMonth(newEndDate.getMonth() + unitsToMove);
-                } else if (dragState.mode === 'resize-end') {
-                    newEndDate.setMonth(newEndDate.getMonth() + unitsToMove);
-                } else if (dragState.mode === 'resize-start') {
-                    newStartDate.setMonth(newStartDate.getMonth() + unitsToMove);
+            }
+        } else if (scale === 'week') {
+            const totalWeeks = timeUnits.length;
+            const weeksDelta = Math.round((deltaPercent / 100) * totalWeeks);
+            
+            if (dragState.mode === 'move') {
+                newStartDate.setDate(newStartDate.getDate() + (weeksDelta * 7));
+                newEndDate.setDate(newEndDate.getDate() + (weeksDelta * 7));
+            } else if (dragState.mode === 'resize-start') {
+                newStartDate = new Date(currentStart);
+                newStartDate.setDate(currentStart.getDate() + (weeksDelta * 7));
+                if (newStartDate >= currentEnd) {
+                    newStartDate = new Date(currentEnd);
+                    newStartDate.setDate(currentEnd.getDate() - 7);
                 }
-                break;
+            } else if (dragState.mode === 'resize-end') {
+                newEndDate = new Date(currentEnd);
+                newEndDate.setDate(currentEnd.getDate() + (weeksDelta * 7));
+                if (newEndDate <= currentStart) {
+                    newEndDate = new Date(currentStart);
+                    newEndDate.setDate(currentStart.getDate() + 7);
+                }
+            }
+        } else if (scale === 'month') {
+            const totalMonths = timeUnits.length;
+            const monthsDelta = Math.round((deltaPercent / 100) * totalMonths);
+            
+            if (dragState.mode === 'move') {
+                newStartDate.setMonth(newStartDate.getMonth() + monthsDelta);
+                newEndDate.setMonth(newEndDate.getMonth() + monthsDelta);
+            } else if (dragState.mode === 'resize-start') {
+                newStartDate = new Date(currentStart);
+                newStartDate.setMonth(currentStart.getMonth() + monthsDelta);
+                if (newStartDate >= currentEnd) {
+                    newStartDate = new Date(currentEnd);
+                    newStartDate.setMonth(currentEnd.getMonth() - 1);
+                }
+            } else if (dragState.mode === 'resize-end') {
+                newEndDate = new Date(currentEnd);
+                newEndDate.setMonth(currentEnd.getMonth() + monthsDelta);
+                if (newEndDate <= currentStart) {
+                    newEndDate = new Date(currentStart);
+                    newEndDate.setMonth(currentStart.getMonth() + 1);
+                }
+            }
         }
 
         // Validation : la date de fin doit être après la date de début
@@ -816,7 +910,7 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
 
             {/* Zone de défilement horizontal */}
             <div className="flex-1 overflow-x-auto overflow-y-hidden">
-                <div className="relative" style={{ width: `${totalWidth}px`, minHeight: '100%' }}
+                <div className="timeline-container relative" style={{ width: `${totalWidth}px`, minHeight: '100%' }}
                      onMouseMove={handleMouseMove}
                      onMouseUp={handleMouseUp}
                      onMouseLeave={handleMouseUp}>
@@ -824,12 +918,12 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                     <div className="sticky top-0 bg-white z-20 border-b-2 border-gray-200">
                         <div className="flex h-16">
                             {timeUnits.map((unit, index) => {
-                                const formatted = formatTimeUnit(unit);
+                                const formatted = formatTimeUnit(unit.date);
                                 return (
                                     <div
                                         key={index}
-                                        className="border-r border-gray-200 flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-50 to-white"
-                                        style={{ width: `${unitWidth}px` }}
+                                        className="border-r border-gray-200 flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-50 to-white py-1"
+                                        style={{ width: `${unitWidth}px`, minWidth: '60px' }}
                                     >
                                         <div className="text-sm font-semibold text-gray-900">{formatted.main}</div>
                                         {formatted.sub && (
@@ -898,24 +992,25 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                                     className="absolute flex items-center"
                                     style={{
                                         top: `${index * 50 + 10}px`,
-                                        left: `${left}px`,
-                                        width: `${width}px`,
+                                        left: left,
+                                        width: width,
                                         height: '36px'
                                     }}
                                 >
                                     <Tooltip content={tooltipContent}>
                                         <div
                                             onClick={() => onCardClick(action)}
-                                            className={`w-full h-full ${config.barBg} rounded-lg cursor-pointer flex items-center px-3 text-white text-sm font-medium shadow-sm hover:shadow-md transition-all hover:scale-105 border-l-4 ${isBeingDragged ? 'opacity-75 scale-105' : ''}`}
+                                            className={`w-full h-full ${config.barBg} rounded-lg cursor-pointer flex items-center px-3 text-white text-sm font-medium shadow-sm hover:shadow-md transition-all hover:scale-105 border-l-4 ${isBeingDragged ? 'opacity-75 scale-105' : ''} relative`}
                                             style={{ borderLeftColor: config.color.replace('border-', '').replace('-500', '') }}
                                             onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
                                             title={`${action.title} - ${action.start_date} (${Math.ceil((new Date(action.due_date).getTime() - new Date(action.start_date).getTime()) / (1000 * 60 * 60 * 24))} jours)`}
                                         >
                                             {/* Poignée de redimensionnement gauche */}
                                             <div
-                                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+                                                className="absolute left-0 top-0 w-3 h-full cursor-ew-resize bg-black bg-opacity-20 hover:bg-opacity-40 transition-all rounded-l-md"
                                                 onMouseDown={(e) => {
                                                     e.stopPropagation();
+                                                    e.preventDefault();
                                                     handleMouseDown(e, action.id, 'resize-start');
                                                 }}
                                             />
@@ -944,9 +1039,10 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                                             
                                             {/* Poignée de redimensionnement droite */}
                                             <div
-                                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+                                                className="absolute right-0 top-0 w-3 h-full cursor-ew-resize bg-black bg-opacity-20 hover:bg-opacity-40 transition-all rounded-r-md"
                                                 onMouseDown={(e) => {
                                                     e.stopPropagation();
+                                                    e.preventDefault();
                                                     handleMouseDown(e, action.id, 'resize-end');
                                                 }}
                                             />
