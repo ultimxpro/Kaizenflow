@@ -8,7 +8,7 @@ import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus,
 
 // --- TYPES & INTERFACES ---
 type ActionType = 'simple' | 'securisation' | 'poka-yoke';
-type ActionStatus = 'À faire' | 'Fait'; // Simplifié
+type ActionStatus = 'À faire' | 'Fait';
 
 interface Action {
     id: string;
@@ -114,24 +114,49 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
   );
 };
 
-// --- FORMULAIRE D'ACTION ---
+// --- FORMULAIRE D'ACTION (Nouvelle gestion du leader & Section Détails) ---
 const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
     if (!isOpen) return null;
     
-    const [formData, setFormData] = useState<Partial<Action>>(action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: '', start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 });
+    const [formData, setFormData] = useState<Partial<Action>>({});
     const [duration, setDuration] = useState(1);
     const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
 
     useEffect(() => {
+        const initialData = action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: '', start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 };
+        setFormData(initialData);
+
+        // Reverse-calculate duration on edit
+        if(action && action.start_date && action.due_date) {
+            const start = new Date(action.start_date);
+            const end = new Date(action.due_date);
+            const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays % 30 === 0 && diffDays > 0) {
+                setDuration(diffDays / 30);
+                setDurationUnit('months');
+            } else if (diffDays % 7 === 0 && diffDays > 0) {
+                setDuration(diffDays / 7);
+                setDurationUnit('weeks');
+            } else {
+                setDuration(diffDays);
+                setDurationUnit('days');
+            }
+        }
+    }, [action]);
+    
+    useEffect(() => {
         if (!formData.start_date) return;
         const startDate = new Date(formData.start_date);
         let endDate = new Date(startDate);
+        const newDuration = Math.max(1, duration); // Ensure duration is at least 1
+
         if (durationUnit === 'days') {
-            endDate.setDate(startDate.getDate() + duration);
+            endDate.setDate(startDate.getDate() + newDuration);
         } else if (durationUnit === 'weeks') {
-            endDate.setDate(startDate.getDate() + duration * 7);
+            endDate.setDate(startDate.getDate() + newDuration * 7);
         } else if (durationUnit === 'months') {
-            endDate.setMonth(startDate.getMonth() + duration);
+            endDate.setMonth(startDate.getMonth() + newDuration);
         }
         setFormData(prev => ({ ...prev, due_date: endDate.toISOString().split('T')[0] }));
     }, [formData.start_date, duration, durationUnit]);
@@ -149,7 +174,8 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
         setFormData(prev => {
             const currentAssignees = prev.assignee_ids || [];
             const newAssignees = currentAssignees.includes(userId) ? currentAssignees.filter(id => id !== userId) : [...currentAssignees, userId];
-            const newLeaderId = newAssignees.includes(prev.leader_id) ? prev.leader_id : (newAssignees[0] || undefined);
+            let newLeaderId = newAssignees.includes(prev.leader_id) ? prev.leader_id : (newAssignees[0] || undefined);
+            if(newAssignees.length === 0) newLeaderId = undefined;
             return { ...prev, assignee_ids: newAssignees, leader_id: newLeaderId };
         });
     };
@@ -184,8 +210,8 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                 <form onSubmit={(e) => { e.preventDefault(); onSave(formData as Action); }} className="space-y-6">
                     <PDCASection title="Description" icon={<Layers size={20} />}>
                         <div className="space-y-4">
-                            <input name="title" value={formData.title} onChange={handleChange} placeholder="Titre de l'action" className="p-2 w-full border bg-white border-gray-300 rounded" required />
-                            <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Description détaillée de l'action..." className="p-2 w-full border bg-white border-gray-300 rounded h-24"></textarea>
+                            <input name="title" value={formData.title || ''} onChange={handleChange} placeholder="Titre de l'action" className="p-2 w-full border bg-white border-gray-300 rounded" required />
+                            <textarea name="description" value={formData.description || ''} onChange={handleChange} placeholder="Description détaillée de l'action..." className="p-2 w-full border bg-white border-gray-300 rounded h-24"></textarea>
                         </div>
                     </PDCASection>
 
@@ -196,11 +222,11 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                               const isLeader = formData.leader_id === user.id;
                               return (
                                 <div key={user.id} className="flex flex-col items-center">
-                                  <div onClick={() => toggleAssignee(user.id)} className={`relative p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'bg-blue-200' : 'hover:bg-gray-200'}`}>
+                                  <div onClick={() => toggleAssignee(user.id)} className={`relative p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : 'hover:bg-gray-200'}`}>
                                     <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
                                     {isSelected && (
                                         <Tooltip content={isLeader ? "Leader actuel" : "Promouvoir Leader"}>
-                                            <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full p-0.5 flex items-center justify-center">
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute top-0 right-0 w-5 h-5 bg-white rounded-full p-0.5 flex items-center justify-center shadow">
                                                 {isLeader ? (
                                                     <Crown className="w-full h-full text-yellow-500" fill="currentColor" />
                                                 ) : (
