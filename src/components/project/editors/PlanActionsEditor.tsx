@@ -75,7 +75,6 @@ const DateIndicator = ({ dueDate, status }: { dueDate: string, status: ActionSta
     );
 };
 
-// ## DEBUT DU CODE CORRIGÉ 1/2 ##
 const AssigneeAvatars = ({ assignee_ids, leader_id, users }: { assignee_ids: string[], leader_id?: string, users: User[] }) => (
     <div className="flex items-center -space-x-2">
         {assignee_ids.map(id => {
@@ -85,10 +84,10 @@ const AssigneeAvatars = ({ assignee_ids, leader_id, users }: { assignee_ids: str
             return (
                 <Tooltip key={id} content={`${user.nom}${isLeader ? ' (Leader)' : ''}`}>
                     <div className="relative">
-                        <img 
-                            src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} 
-                            alt={user.nom} 
-                            className="w-6 h-6 rounded-full border-2 border-white" 
+                        <img
+                            src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`}
+                            alt={user.nom}
+                            className="w-6 h-6 rounded-full border-2 border-white"
                         />
                         {isLeader && (
                             <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center border border-white">
@@ -101,7 +100,6 @@ const AssigneeAvatars = ({ assignee_ids, leader_id, users }: { assignee_ids: str
         })}
     </div>
 );
-// ## FIN DU CODE CORRIGÉ 1/2 ##
 
 
 const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, users: User[], onDragStart: (e: React.DragEvent, action: Action) => void, onClick: (action: Action) => void }) => {
@@ -151,10 +149,10 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
             const end = new Date(action.due_date);
             const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
-            if (diffDays % 30 === 0 && diffDays > 0) {
+            if (diffDays > 0 && diffDays % 30 === 0) {
                 setDuration(diffDays / 30);
                 setDurationUnit('months');
-            } else if (diffDays % 7 === 0 && diffDays > 0) {
+            } else if (diffDays > 0 && diffDays % 7 === 0) {
                 setDuration(diffDays / 7);
                 setDurationUnit('weeks');
             } else {
@@ -226,24 +224,23 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                     </PDCASection>
 
                     <PDCASection title="Équipe" icon={<Users size={20} />}>
-                        {/* ## DEBUT DU CODE CORRIGÉ 2/2 ## */}
                         <div className="flex flex-wrap gap-4">
                             {projectMembers.map(user => {
                                 const isSelected = (formData.assignee_ids || []).includes(user.id);
                                 const isLeader = formData.leader_id === user.id;
                                 return (
                                     <div key={user.id} className="flex flex-col items-center">
-                                        <div 
-                                            onClick={() => toggleAssignee(user.id)} 
+                                        <div
+                                            onClick={() => toggleAssignee(user.id)}
                                             className={`p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : 'hover:bg-gray-200'}`}
                                         >
                                             <div className="relative">
                                                 <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
                                                 {isSelected && (
                                                     <Tooltip content={isLeader ? "Leader actuel" : "Promouvoir Leader"}>
-                                                        <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
+                                                        <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1">
                                                             {isLeader ? (
-                                                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
+                                                                <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
                                                                     <Crown className="w-3 h-3 text-yellow-800" />
                                                                 </div>
                                                             ) : (
@@ -261,7 +258,6 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                 );
                             })}
                         </div>
-                        {/* ## FIN DU CODE CORRIGÉ 2/2 ## */}
                     </PDCASection>
 
                     <PDCASection title="Détails" icon={<Table size={20} />}>
@@ -288,12 +284,12 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-xs text-gray-500">Date de début</label>
-                                        <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
+                                        <input type="date" name="start_date" value={formData.start_date || ''} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
                                     </div>
                                     <div>
                                         <label className="text-xs text-gray-500">Durée</label>
                                         <div className="flex">
-                                            <input type="number" value={duration} onChange={e => setDuration(parseInt(e.target.value))} min="1" className="p-2 border bg-white border-gray-300 rounded-l w-1/2"/>
+                                            <input type="number" value={duration} onChange={e => setDuration(parseInt(e.target.value) || 1)} min="1" className="p-2 border bg-white border-gray-300 rounded-l w-1/2"/>
                                             <select value={durationUnit} onChange={e => setDurationUnit(e.target.value as any)} className="p-2 border bg-white border-gray-300 rounded-r w-1/2">
                                                 <option value="days">Jours</option>
                                                 <option value="weeks">Semaines</option>
@@ -302,7 +298,7 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                         </div>
                                     </div>
                                 </div>
-                                {formData.due_date && <p className="text-xs text-gray-500 mt-2">Date de fin prévisionnelle : <span className="font-semibold">{new Date(formData.due_date).toLocaleDateString()}</span></p>}
+                                {formData.due_date && <p className="text-xs text-gray-500 mt-2">Date de fin prévisionnelle : <span className="font-semibold">{new Date(formData.due_date).toLocaleDateString('fr-FR')}</span></p>}
                             </div>
                         </div>
                     </PDCASection>
@@ -310,8 +306,8 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                     <PDCASection title="Priorisation" icon={<GanttChartSquare size={20} />}>
                         <div className="grid grid-cols-2 gap-6 items-center">
                             <div>
-                                <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort} onChange={e => handleRangeChange('effort', e.target.value)} className="w-full" /></div>
-                                <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain} onChange={e => handleRangeChange('gain', e.target.value)} className="w-full" /></div>
+                                <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort || 5} onChange={e => handleRangeChange('effort', e.target.value)} className="w-full" /></div>
+                                <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain || 5} onChange={e => handleRangeChange('gain', e.target.value)} className="w-full" /></div>
                             </div>
                             <div className="text-center">
                                 <p className="text-sm text-gray-500">Position dans la matrice :</p>
@@ -342,7 +338,7 @@ const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action
 
     const handleDrop = (e: React.DragEvent, targetType: ActionType) => {
         e.preventDefault();
-        e.currentTarget.classList.remove('bg-blue-50', 'border-blue-300');
+        (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300');
         if (!draggedItem || draggedItem.type === targetType) return;
         setActions(actions.map(act => act.id === draggedItem.id ? { ...act, type: targetType } : act), { ...draggedItem, type: targetType });
     };
@@ -352,8 +348,8 @@ const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action
             {Object.entries(columns).map(([type, items]) => (
                 <div key={type} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg p-4 transition-colors"
                      onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, type as ActionType)}
-                     onDragEnter={(e) => e.currentTarget.classList.add('bg-blue-50', 'border-blue-300')}
-                     onDragLeave={(e) => e.currentTarget.classList.remove('bg-blue-50', 'border-blue-300')}>
+                     onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-50', 'border-blue-300')}
+                     onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300')}>
                     <h2 className={`font-bold mb-4 px-1 flex items-center gap-2 ${actionTypeConfig[type as ActionType].textColor}`}>
                         <span className="text-lg">{actionTypeConfig[type as ActionType].icon}</span> {actionTypeConfig[type as ActionType].name}
                         <span className="text-sm font-normal text-gray-500 ml-auto bg-gray-200 rounded-full px-2">{items.length}</span>
@@ -378,7 +374,7 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
 
     const handleDrop = (e: React.DragEvent, targetStatus: ActionStatus) => {
         e.preventDefault();
-        e.currentTarget.classList.remove('bg-blue-50', 'border-blue-300');
+        (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300');
         if (!draggedItem || draggedItem.status === targetStatus) return;
         setActions(actions.map(act => act.id === draggedItem.id ? { ...act, status: targetStatus } : act), { ...draggedItem, status: targetStatus });
     };
@@ -394,8 +390,8 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
                 {Object.entries(columns).map(([status, items]) => (
                     <div key={status} className="flex flex-col bg-gray-50 border border-gray-200 rounded-lg p-4 transition-colors"
                          onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status as ActionStatus)}
-                         onDragEnter={(e) => e.currentTarget.classList.add('bg-blue-50', 'border-blue-300')}
-                         onDragLeave={(e) => e.currentTarget.classList.remove('bg-blue-50', 'border-blue-300')}>
+                         onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-50', 'border-blue-300')}
+                         onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'border-blue-300')}>
                         <h2 className="font-bold text-gray-700 mb-4 px-1">{status} <span className="text-sm font-normal text-gray-500">{items.length}</span></h2>
                         <div className="overflow-y-auto flex-1 pr-2">{items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
                     </div>
@@ -420,7 +416,7 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
 
     const handleDrop = (e: React.DragEvent, quadrant: string) => {
         e.preventDefault();
-        e.currentTarget.classList.remove('ring-2', 'ring-blue-400');
+        (e.currentTarget as HTMLDivElement).classList.remove('ring-2', 'ring-blue-400');
         if(!draggedItem) return;
         const newValues = {
             'quick-wins': { gain: 8, effort: 3 },
@@ -461,8 +457,15 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
     if (actions.length === 0) return <div className="text-center p-8 text-gray-500">Aucune action à afficher.</div>;
 
     const sortedActions = [...actions].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
-    const startDate = new Date(Math.min(...sortedActions.map(a => new Date(a.start_date).getTime())));
-    const endDate = new Date(Math.max(...sortedActions.map(a => new Date(a.due_date).getTime())));
+    const minTime = Math.min(...sortedActions.map(a => new Date(a.start_date).getTime()));
+    const maxTime = Math.max(...sortedActions.map(a => new Date(a.due_date).getTime()));
+    
+    if (!isFinite(minTime) || !isFinite(maxTime)) {
+        return <div className="text-center p-8 text-gray-500">Dates invalides pour le diagramme de Gantt.</div>;
+    }
+
+    const startDate = new Date(minTime);
+    const endDate = new Date(maxTime);
     startDate.setDate(startDate.getDate() - 2);
     endDate.setDate(endDate.getDate() + 2);
 
@@ -486,7 +489,7 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                         const width = (duration / totalDays) * 100;
                         const config = actionTypeConfig[action.type];
                         const leader = users.find(u => u.id === action.leader_id);
-                        const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString()} au ${new Date(action.due_date).toLocaleDateString()}<br>Leader: ${leader?.nom || 'N/A'}`;
+                        const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString('fr-FR')} au ${new Date(action.due_date).toLocaleDateString('fr-FR')}<br>Leader: ${leader?.nom || 'N/A'}`;
 
                         return (
                             <div key={action.id} className="w-full h-10 flex items-center">
@@ -544,7 +547,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
 
     const handleSaveAction = useCallback((actionData: Action) => {
         let updatedActions;
-        if (actionData.id && actions.find(a => a.id === actionData.id)) {
+        if (actionData.id && actions.some(a => a.id === actionData.id)) {
             updatedActions = actions.map(a => a.id === actionData.id ? actionData : a);
         } else {
             updatedActions = [...actions, { ...actionData, id: Date.now().toString() }];
