@@ -702,11 +702,36 @@ const GanttView = ({ actions, setActions, users, onCardClick }: { actions: Actio
                                     <Tooltip content={`<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString()} au ${new Date(action.due_date).toLocaleDateString()}`}>
                                       <div
                                         onMouseDown={(e) => handleMouseDown(e, action, 'move')}
-                                        className={`absolute inset-0 rounded ${config.barBg} cursor-move flex items-center px-2 text-white text-xs font-semibold overflow-hidden transition-all duration-75 ${isDragging ? 'opacity-70 scale-105 shadow-lg' : 'shadow'}`}
+                                        className={`absolute inset-0 rounded ${config.barBg} cursor-grab hover:cursor-grab flex items-center px-2 text-white text-xs font-semibold overflow-hidden transition-all duration-75 ${isDragging ? 'opacity-70 scale-105 shadow-lg' : 'shadow'}`}
+                                        title={`${action.title} - ${new Date(action.start_date).toLocaleDateString('fr-FR')} → ${new Date(action.due_date).toLocaleDateString('fr-FR')}`}
                                       >
-                                          <div onMouseDown={(e) => handleMouseDown(e, action, 'resize-start')} className="absolute left-0 top-0 h-full w-2 cursor-ew-resize bg-black bg-opacity-20 hover:bg-opacity-40 z-10"/>
-                                          <span className="truncate pointer-events-none">{action.title}</span>
-                                          <div onMouseDown={(e) => handleMouseDown(e, action, 'resize-end')} className="absolute right-0 top-0 h-full w-2 cursor-ew-resize bg-black bg-opacity-20 hover:bg-opacity-40 z-10"/>
+                                          {/* Poignée de redimensionnement gauche */}
+                                          <div 
+                                            className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-black hover:bg-opacity-20 rounded-l"
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              handleMouseDown(e, action, 'resize-start');
+                                            }}
+                                          />
+                                          
+                                          <span className="flex-1 truncate px-2">{action.title}</span>
+                                          <div className="flex-shrink-0 flex -space-x-1 pr-1">
+                                            {action.assignee_ids.slice(0, 3).map(id => {
+                                              const user = users.find(u => u.id === id);
+                                              return user ? (
+                                                <img key={id} src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-4 h-4 rounded-full border border-white" />
+                                              ) : null;
+                                            })}
+                                          </div>
+                                          
+                                          {/* Poignée de redimensionnement droite */}
+                                          <div 
+                                            className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-black hover:bg-opacity-20 rounded-r"
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              handleMouseDown(e, action, 'resize-end');
+                                            }}
+                                          />
                                       </div>
                                     </Tooltip>
                                 </div>
@@ -846,7 +871,7 @@ const handleSetActions = useCallback((updatedActions: Action[], changedItem: Act
                                 {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
-                                {view === 'gantt' && <GanttView actions={actions} users={currentProjectMembers} onCardClick={openActionModal} />}
+                                {view === 'gantt' && <GanttView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                             </>
                         )}
                     </main>
