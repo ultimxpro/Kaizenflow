@@ -677,15 +677,22 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         let newStartDate = new Date(dragState.originalStartDate);
         let newEndDate = new Date(dragState.originalEndDate);
         
+        // --- DEBUT DE LA CORRECTION ---
         if (dragState.mode === 'move') {
             newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
             newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
+            
+            // On aimante les DEUX dates car on déplace tout le bloc
+            newStartDate = snapDateToScale(newStartDate, dragState.scale);
+            newEndDate = snapDateToScale(newEndDate, dragState.scale);
+
         } else if (dragState.mode === 'resize-right') {
             newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
+            
+            // On aimante UNIQUEMENT la date de fin
+            newEndDate = snapDateToScale(newEndDate, dragState.scale);
         }
-
-        newStartDate = snapDateToScale(newStartDate, dragState.scale);
-        newEndDate = snapDateToScale(newEndDate, dragState.scale);
+        // --- FIN DE LA CORRECTION ---
 
         if (newEndDate <= newStartDate) {
             const minDuration = dragState.scale === 'week' ? 7 : 1;
@@ -870,7 +877,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     </div>
   );
 };
-
 
 // --- COMPOSANT PRINCIPAL ---
 const TabButton = ({ active, onClick, children, icon }: { active: boolean, onClick: () => void, children: React.ReactNode, icon: React.ReactNode }) => (
