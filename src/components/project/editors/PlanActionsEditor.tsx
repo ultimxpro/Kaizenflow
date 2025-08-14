@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { A3Module, User } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
 import { useAuth } from '../../../contexts/AuthContext';
-import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check } from 'lucide-react';
+import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check, Calendar, Tag, Activity } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 type ActionType = 'simple' | 'securisation' | 'poka-yoke';
@@ -38,7 +38,7 @@ const actionTypeConfig = {
 };
 
 
-// --- COMPOSANTS UTILITAIRES ---
+// --- COMPOSANTS UTILITAIAIRES ---
 const Tooltip = ({ content, children }: { content: string, children: React.ReactNode }) => (
     <div className="relative group">
         {children}
@@ -106,7 +106,7 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
   );
 };
 
-// --- FORMULAIRE D'ACTION (Nouvelle gestion du leader) ---
+// --- FORMULAIRE D'ACTION (Nouvelle gestion du leader & Section Détails) ---
 const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
     if (!isOpen) return null;
     
@@ -170,13 +170,14 @@ const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOp
                                 <div key={user.id} className="flex flex-col items-center">
                                   <div onClick={() => toggleAssignee(user.id)} className={`relative p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'bg-blue-200' : 'hover:bg-gray-200'}`}>
                                     <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
-                                    {isLeader && (
-                                        <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500 bg-white rounded-full p-0.5" fill="currentColor"/>
-                                    )}
-                                    {isSelected && !isLeader && (
-                                        <Tooltip content="Promouvoir Leader">
+                                    {isSelected && (
+                                        <Tooltip content={isLeader ? "Leader actuel" : "Promouvoir Leader"}>
                                             <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full p-0.5 flex items-center justify-center">
-                                                <Crown className="w-full h-full text-gray-400 hover:text-yellow-500" strokeDasharray="2 2" />
+                                                {isLeader ? (
+                                                    <Crown className="w-full h-full text-yellow-500" fill="currentColor" />
+                                                ) : (
+                                                    <Crown className="w-full h-full text-gray-400 hover:text-yellow-500" strokeDasharray="2 2" />
+                                                )}
                                             </button>
                                         </Tooltip>
                                     )}
@@ -189,19 +190,31 @@ const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOp
                     </PDCASection>
 
                     <PDCASection title="Détails" icon={<Table size={20} />}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <select name="status" value={formData.status} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded"><option>À faire</option><option>En cours</option><option>Terminé</option></select>
-                                <div className="relative">
-                                    <select name="type" value={formData.type} onChange={handleChange} className="w-full p-2 border bg-white border-gray-300 rounded appearance-none pl-8">
-                                      {Object.entries(actionTypeConfig).map(([key, config]) => <option key={key} value={key}>{config.name}</option>)}
-                                    </select>
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">{formData.type ? actionTypeConfig[formData.type].icon : ''}</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Activity size={14} className="mr-2"/> Statut</label>
+                                    <select name="status" value={formData.status} onChange={handleChange} className="p-2 w-full border bg-white border-gray-300 rounded"><option>À faire</option><option>En cours</option><option>Terminé</option></select>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Tag size={14} className="mr-2"/> Type</label>
+                                    <div className="relative">
+                                        <select name="type" value={formData.type} onChange={handleChange} className="w-full p-2 border bg-white border-gray-300 rounded appearance-none pl-8">
+                                          {Object.entries(actionTypeConfig).map(([key, config]) => <option key={key} value={key}>{config.name}</option>)}
+                                        </select>
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">{formData.type ? actionTypeConfig[formData.type].icon : ''}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div><label className="text-sm text-gray-500">Date de début</label><input type="date" name="start_date" value={formData.start_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" /></div>
-                              <div><label className="text-sm text-gray-500">Date de fin</label><input type="date" name="due_date" value={formData.due_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" /></div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Calendar size={14} className="mr-2"/> Date de début</label>
+                                    <input type="date" name="start_date" value={formData.start_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Calendar size={14} className="mr-2"/> Date de fin</label>
+                                    <input type="date" name="due_date" value={formData.due_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
+                                </div>
                             </div>
                         </div>
                     </PDCASection>
