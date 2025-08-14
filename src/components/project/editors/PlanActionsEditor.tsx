@@ -329,7 +329,7 @@ const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action
                             {items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, action) => setDraggedItem(action)} onClick={onCardClick} />)}
                         </div>
                     </div>
-                )
+                );
             })}
         </div>
     );
@@ -489,15 +489,8 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
                         style={{ 
                             width: `${filteredActions.length > 0 ? (columns['Fait'].length / filteredActions.length) * 100 : 0}%` 
                         }}
-                        </h2>
                     ></div>
                 </div>
-            </div>
-        </div>
-    );
-};
-                    </div>
-                ))}
             </div>
         </div>
     );
