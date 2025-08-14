@@ -1,6 +1,6 @@
 // src/components/project/editors/PlanActionsEditor.tsx
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { A3Module, User } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -903,22 +903,20 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
                     </div>
 
                     <main className="flex-1 overflow-y-auto min-h-0">
-    {loading || !currentProjectMembers ? <div className="text-center p-8">Chargement...</div> : (
-        <>
-            {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
-            {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
-            {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
-            
-            {/* VÉRIFIEZ BIEN CETTE LIGNE CI-DESSOUS */}
-            {view === 'gantt' && <GanttView 
+                        {loading || !currentProjectMembers ? <div className="text-center p-8">Chargement...</div> : (
+                            <>
+                                {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
+                                {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
+                                {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
+                                {view === 'gantt' && <GanttView 
                 actions={actions} 
                 users={currentProjectMembers} 
                 onUpdateAction={handleUpdateAction} 
                 onCardClick={openActionModal} 
             />}
-        </>
-    )}
-</main>
+                            </>
+                        )}
+                    </main>
                 </div>
 
                 {isActionModalOpen && <ActionModal
