@@ -568,6 +568,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     startX: number;
     originalStartDate: Date;
     originalEndDate: Date;
+    scale: 'day' | 'week' | 'month';
   } | null>(null);
 
   const validActions = useMemo(() => actions
@@ -576,32 +577,28 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     [actions]
   );
 
-  const { ganttStartDate, ganttEndDate, pixelsPerDay } = useMemo(() => {
+  const getGanttDateRange = useCallback(() => {
     if (validActions.length === 0) {
       const today = new Date();
       const start = new Date(today);
-      start.setHours(0, 0, 0, 0);
+      start.setHours(0,0,0,0);
       start.setDate(today.getDate() - 30);
       const end = new Date(today);
-      end.setHours(0, 0, 0, 0);
+      end.setHours(0,0,0,0);
       end.setDate(today.getDate() + 60);
-      return { ganttStartDate: start, ganttEndDate: end, pixelsPerDay: 50 };
+      return { start, end };
     }
     const allDates = validActions.flatMap(a => [new Date(a.start_date), new Date(a.due_date)]);
     const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
-    minDate.setHours(0, 0, 0, 0);
-    maxDate.setHours(0, 0, 0, 0);
+    minDate.setHours(0,0,0,0);
+    maxDate.setHours(0,0,0,0);
     minDate.setDate(minDate.getDate() - 7);
     maxDate.setDate(maxDate.getDate() + 14);
-    
-    const unitWidth = ganttScale === 'day' ? 50 : ganttScale === 'week' ? 80 : 150;
-    let ppd = unitWidth;
-    if (ganttScale === 'week') ppd = unitWidth / 7;
-    if (ganttScale === 'month') ppd = unitWidth / 30.44;
+    return { start: minDate, end: maxDate };
+  }, [validActions]);
 
-    return { ganttStartDate: minDate, ganttEndDate: maxDate, pixelsPerDay: ppd };
-  }, [validActions, ganttScale]);
+  const { start: ganttStartDate, end: ganttEndDate } = getGanttDateRange();
 
   const getISOWeekNumber = (date: Date): number => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -631,19 +628,40 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
   const totalWidth = useMemo(() => timelineColumns.reduce((acc, col) => acc + col.width, 0), [timelineColumns]);
 
   const calculateBarPositionAndWidth = (action: Action) => {
-    if (!ganttStartDate || pixelsPerDay <= 0) return { left: 0, width: 0 };
+    if (!ganttStartDate || !ganttEndDate || totalWidth === 0) return { left: 0, width: 0 };
     
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    const timelineDurationMs = ganttEndDate.getTime() - ganttStartDate.getTime();
+    if (timelineDurationMs <= 0) return { left: 0, width: 0 };
+
+    const pixelsPerMs = totalWidth / timelineDurationMs;
+
     const actionStart = new Date(action.start_date + 'T00:00:00');
     const actionEnd = new Date(action.due_date + 'T00:00:00');
     
-    const startDiffDays = (actionStart.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
-    const durationDays = (actionEnd.getTime() - actionStart.getTime()) / MS_PER_DAY + 1;
+    const startOffsetMs = actionStart.getTime() - ganttStartDate.getTime();
+    const actionDurationMs = (actionEnd.getTime() - actionStart.getTime()) + MS_PER_DAY; // +1 jour pour être inclusif
 
-    const left = startDiffDays * pixelsPerDay;
-    const width = durationDays * pixelsPerDay;
+    const left = startOffsetMs * pixelsPerMs;
+    const width = actionDurationMs * pixelsPerMs;
 
     return { left, width };
+  };
+
+  const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month') => {
+    const newDate = new Date(date);
+    newDate.setUTCHours(0, 0, 0, 0);
+    switch (scale) {
+      case 'week': 
+        const day = newDate.getUTCDay();
+        const diff = newDate.getUTCDate() - day + (day === 0 ? -6 : 1);
+        newDate.setUTCDate(diff); 
+        break;
+      case 'month': 
+        newDate.setUTCDate(1); 
+        break;
+    }
+    return newDate;
   };
 
   const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right') => {
@@ -655,59 +673,83 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
       actionId, mode, startX: e.clientX,
       originalStartDate: new Date(action.start_date),
       originalEndDate: new Date(action.due_date),
+      scale: ganttScale,
     });
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-        if (!dragState) return;
-        
-        const deltaX = e.clientX - dragState.startX;
-        const deltaDays = Math.round(deltaX / pixelsPerDay);
-        
-        let newStartDate = new Date(dragState.originalStartDate);
-        let newEndDate = new Date(dragState.originalEndDate);
-        
-        if (dragState.mode === 'move') {
-            newStartDate.setDate(dragState.originalStartDate.getDate() + deltaDays);
-            newEndDate.setDate(dragState.originalEndDate.getDate() + deltaDays);
-        } else if (dragState.mode === 'resize-right') {
-            newEndDate.setDate(dragState.originalEndDate.getDate() + deltaDays);
-        }
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!dragState || !ganttRef.current || !ganttStartDate || !ganttEndDate) return;
+            const rect = ganttRef.current.getBoundingClientRect();
+            if (rect.width === 0 || totalWidth === 0) return;
 
-        if (newEndDate < newStartDate) {
-            newEndDate.setDate(newStartDate.getDate());
-        }
+            const timelineDurationMs = ganttEndDate.getTime() - ganttStartDate.getTime();
+            const msPerPixel = timelineDurationMs / totalWidth;
 
-        onUpdateAction(dragState.actionId, {
-            start_date: newStartDate.toISOString().split('T')[0],
-            due_date: newEndDate.toISOString().split('T')[0],
-        });
-    };
+            const deltaX = e.clientX - dragState.startX;
+            const deltaTime = deltaX * msPerPixel;
+            
+            let newStartDate, newEndDate;
+
+            if (dragState.mode === 'resize-right') {
+                // Pour le redimensionnement, seule la date de fin bouge.
+                newStartDate = new Date(dragState.originalStartDate);
+                newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
+
+                // Assure que la durée est d'au moins un jour.
+                if (newEndDate.getTime() < newStartDate.getTime()) {
+                    newEndDate = new Date(newStartDate.getTime());
+                }
+
+            } else { // Mode 'move'
+                // Pour le déplacement, les deux dates bougent de la même manière.
+                newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
+                newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
+            }
+            
+            onUpdateAction(dragState.actionId, {
+                start_date: newStartDate.toISOString().split('T')[0],
+                due_date: newEndDate.toISOString().split('T')[0],
+            });
+        };
 
     const handleMouseUp = () => {
         if (!dragState) return;
         const action = validActions.find(a => a.id === dragState.actionId);
         if (!action) { setDragState(null); return; };
         
+        let finalStartDate = snapDateToScale(new Date(action.start_date), dragState.scale);
+        let finalEndDate = snapDateToScale(new Date(action.due_date), dragState.scale);
+
+        if (finalEndDate <= finalStartDate) {
+            finalEndDate.setDate(finalStartDate.getDate() + 1);
+        }
+
+        const finalStartDateStr = finalStartDate.toISOString().split('T')[0];
+        const finalEndDateStr = finalEndDate.toISOString().split('T')[0];
         const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
         const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
         
-        if (action.start_date !== originalStartDateStr || action.due_date !== originalEndDateStr) {
-            setConfirmationModal({ action, newStartDate: action.start_date, newEndDate: action.due_date, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
+        onUpdateAction(dragState.actionId, {
+            start_date: finalStartDateStr,
+            due_date: finalEndDateStr,
+        });
+
+        if (finalStartDateStr !== originalStartDateStr || finalEndDateStr !== originalEndDateStr) {
+            setConfirmationModal({ action, newStartDate: finalStartDateStr, newEndDate: finalEndDateStr, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
         }
         setDragState(null);
     };
 
-    if (dragState) {
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    }
-    return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragState, onUpdateAction, validActions, pixelsPerDay]);
+        if (dragState) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [dragState, onUpdateAction, validActions, ganttStartDate, ganttEndDate, totalWidth]); // Garde tes dépendances
 
   const handleConfirm = () => setConfirmationModal(null);
 
