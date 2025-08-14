@@ -771,6 +771,7 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
     };
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const todayPosition = (() => {
         if (scale === 'day') {
             return ((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * unitWidth;
