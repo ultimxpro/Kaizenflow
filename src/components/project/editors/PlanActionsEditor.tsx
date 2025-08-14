@@ -1,14 +1,12 @@
 // PlanActionsEditor.tsx
 
 // --- DÉPENDANCES ---
-// Assurez-vous d'avoir installé ces dépendances dans votre projet :
-// npm install @supabase/supabase-js tippy.js
-// Assurez-vous également que React, ReactDOM et Font Awesome sont configurés.
+// Assurez-vous d'avoir installé cette dépendance dans votre projet :
+// npm install @supabase/supabase-js
+// Assurez-vous également que React, ReactDOM, TailwindCSS et Font Awesome sont configurés.
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import tippy from 'tippy.js';
-import 'tippy.js/dist/tippy.css'; // Assurez-vous que votre bundler peut gérer les imports CSS
 
 // --- CONFIGURATION & DONNÉES ---
 const useMockData = true; // Mettre à false pour utiliser Supabase (après configuration CORS)
@@ -16,7 +14,7 @@ const useMockData = true; // Mettre à false pour utiliser Supabase (après conf
 // Remplacez par vos propres informations Supabase si vous n'utilisez pas les données mock
 const supabaseUrl = 'https://hvaxjxqisjpbsprwtexo.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh2YXhqeHFpc2pwYnNwcmtldHhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTg2MzM0NDYsImV4cCI6MjAzNDIwOTQ0Nn0.p4x2i9m1DqHD2cFHw4Kuc-0q52vQ3O2a5y--u6B4-S4';
-const supabaseClient = createClient(supabaseUrl, supabaseKey);
+const supabaseClient = useMockData ? null : createClient(supabaseUrl, supabaseKey);
 
 // Données de démonstration enrichies
 const mockUsers = [
@@ -39,29 +37,16 @@ const actionTypeConfig = {
   'poka-yoke': { name: 'Poka-Yoke', icon: <i className="fa-solid fa-puzzle-piece text-yellow-500"></i>, color: 'border-yellow-500', textColor: 'text-yellow-500', progressBg: 'bg-yellow-500' },
 };
 
-// --- HOOK POUR INFOBULLES ---
-const useTippy = (content) => {
-    const ref = useRef(null);
-    useEffect(() => {
-        if (ref.current) {
-            const instance = tippy(ref.current, {
-                content: content,
-                theme: 'kaizen',
-                animation: 'fade',
-                arrow: true,
-                allowHTML: true,
-            });
-            return () => {
-                if (instance) {
-                    instance.destroy();
-                }
-            };
-        }
-    }, [content]);
-    return ref;
-};
-
 // --- COMPOSANTS ---
+
+const Tooltip = ({ content, children }) => (
+    <div className="relative group">
+        {children}
+        <div className="absolute bottom-full mb-2 w-max max-w-xs p-2 text-xs text-white bg-slate-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10"
+             dangerouslySetInnerHTML={{ __html: content }}
+        />
+    </div>
+);
 
 const DateIndicator = ({ dueDate }) => {
     const now = new Date();
@@ -73,12 +58,13 @@ const DateIndicator = ({ dueDate }) => {
     if (diffDays < 0) { color = 'text-red-600'; text = `En retard de ${Math.abs(Math.round(diffDays))}j`; }
     else if (diffDays <= 7) { color = 'text-yellow-600'; text = `Échéance proche (${Math.round(diffDays)}j)`; }
 
-    const tippyRef = useTippy(`Échéance: ${due.toLocaleDateString('fr-FR')}`);
     return (
-        <div ref={tippyRef} className={`flex items-center text-xs font-semibold ${color}`}>
-            <i className="fa-solid fa-circle mr-2 text-[6px]"></i>
-            <span>{text}</span>
-        </div>
+        <Tooltip content={`Échéance: ${due.toLocaleDateString('fr-FR')}`}>
+            <div className={`flex items-center text-xs font-semibold ${color}`}>
+                <i className="fa-solid fa-circle mr-2 text-[6px]"></i>
+                <span>{text}</span>
+            </div>
+        </Tooltip>
     );
 };
 
@@ -92,28 +78,28 @@ const ActionCard = ({ action, onDragStart, onClick }) => {
         <p class="text-xs mt-2"><strong>Responsable:</strong> ${user?.name || 'N/A'}</p>
     </div>
   `;
-  const tippyRef = useTippy(tooltipContent);
   
   return (
-    <div
-      ref={tippyRef}
-      draggable="true"
-      onDragStart={(e) => onDragStart(e, action)}
-      onClick={() => onClick(action)}
-      className={`action-card bg-white rounded-lg shadow-sm mb-3 border-l-4 ${config.color} p-3 hover:shadow-md`}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <span className={`flex items-center text-xs font-semibold ${config.textColor}`}>
-          {React.cloneElement(config.icon, { className: 'mr-2' })}
-          {config.name.toUpperCase()}
-        </span>
-        <span className="text-xs font-medium text-gray-500">{user?.name || 'N/A'}</span>
-      </div>
-      <h3 className="font-bold text-gray-800 text-sm">{action.title}</h3>
-      <div className="mt-3">
-        <DateIndicator dueDate={action.due_date} />
-      </div>
-    </div>
+    <Tooltip content={tooltipContent}>
+        <div
+          draggable="true"
+          onDragStart={(e) => onDragStart(e, action)}
+          onClick={() => onClick(action)}
+          className={`action-card bg-white rounded-lg shadow-sm mb-3 border-l-4 ${config.color} p-3 hover:shadow-md`}
+        >
+          <div className="flex justify-between items-start mb-2">
+            <span className={`flex items-center text-xs font-semibold ${config.textColor}`}>
+              {React.cloneElement(config.icon, { className: 'mr-2' })}
+              {config.name.toUpperCase()}
+            </span>
+            <span className="text-xs font-medium text-gray-500">{user?.name || 'N/A'}</span>
+          </div>
+          <h3 className="font-bold text-gray-800 text-sm">{action.title}</h3>
+          <div className="mt-3">
+            <DateIndicator dueDate={action.due_date} />
+          </div>
+        </div>
+    </Tooltip>
   );
 };
 
@@ -248,15 +234,15 @@ const MatrixView = ({ actions, onCardClick }) => {
 const GanttView = ({ actions, onCardClick }) => {
     if (actions.length === 0) return <div className="text-center p-8">Aucune action à afficher.</div>;
     
-    const sortedActions = [...actions].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-    const startDate = new Date(Math.min(...sortedActions.map(a => new Date(a.start_date))));
-    const endDate = new Date(Math.max(...sortedActions.map(a => new Date(a.due_date))));
+    const sortedActions = [...actions].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    const startDate = new Date(Math.min(...sortedActions.map(a => new Date(a.start_date).getTime())));
+    const endDate = new Date(Math.max(...sortedActions.map(a => new Date(a.due_date).getTime())));
     startDate.setDate(startDate.getDate() - 2);
     endDate.setDate(endDate.getDate() + 2);
-    const totalDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
-    const todayPosition = ((new Date() - startDate) / (1000 * 60 * 60 * 24) / totalDays) * 100;
+    const totalDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+    const todayPosition = ((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) / totalDays) * 100;
 
-    const getDaysFromStart = (date) => (new Date(date) - startDate) / (1000 * 3600 * 24);
+    const getDaysFromStart = (date) => (new Date(date).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
 
     return (
         <div className="bg-white p-4 rounded-lg shadow-md overflow-x-auto">
@@ -273,12 +259,14 @@ const GanttView = ({ actions, onCardClick }) => {
                     const width = (getDaysFromStart(action.due_date) - getDaysFromStart(action.start_date)) / totalDays * 100;
                     const config = actionTypeConfig[action.type];
                     const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString()} au ${new Date(action.due_date).toLocaleDateString()}<br>Responsable: ${mockUsers.find(u => u.id === action.assignee_id)?.name || 'N/A'}`;
-                    const tippyRef = useTippy(tooltipContent);
+                    
                     return (
                         <div key={action.id} className="w-full h-10 mb-2 flex items-center">
                             <div className="w-1/4 pr-4 text-sm font-medium truncate">{action.title}</div>
                             <div className="w-3/4 h-full relative">
-                                <div ref={tippyRef} onClick={() => onCardClick(action)} className={`gantt-bar absolute h-full rounded ${config.progressBg} cursor-pointer`} style={{ left: `${left}%`, width: `${width}%` }}></div>
+                                <Tooltip content={tooltipContent}>
+                                    <div onClick={() => onCardClick(action)} className={`gantt-bar absolute h-full rounded ${config.progressBg} cursor-pointer`} style={{ left: `${left}%`, width: `${width}%` }}></div>
+                                </Tooltip>
                             </div>
                         </div>
                     );
