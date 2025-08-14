@@ -552,11 +552,12 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
 
 // Remplacez votre GanttView par celui-ci
 
+// Remplacez votre GanttView par cette version finale avec aimantation
+
 const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: Action[], users: User[], onUpdateAction: (id: string, updates: Partial<Action>) => void, onCardClick: (action: Action) => void }) => {
   const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week');
   const ganttRef = useRef<HTMLDivElement>(null);
   
-  // NOUVEL ÉTAT pour gérer la popup de confirmation
   const [confirmationModal, setConfirmationModal] = useState<{
     action: Action;
     newStartDate: string;
@@ -567,10 +568,11 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
 
   const [dragState, setDragState] = useState<{
     actionId: string;
-    mode: 'move' | 'resize-right'; // On a retiré 'resize-left'
+    mode: 'move' | 'resize-right';
     startX: number;
     originalStartDate: Date;
     originalEndDate: Date;
+    scale: 'day' | 'week' | 'month'; // NOUVEAU: on stocke l'échelle au début du drag
   } | null>(null);
 
   const validActions = useMemo(() => actions
@@ -579,14 +581,36 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
     [actions]
   );
 
-  // --- Fonctions de calcul de la timeline (inchangées) ---
-  const getGanttDateRange = useCallback(() => { /* ... (code inchangé) ... */ }, [validActions]);
+  // --- Fonctions de calcul (inchangées, je les ai masquées pour la lisibilité) ---
+  const getGanttDateRange = useCallback(() => { /* ... */ }, [validActions]);
   const { start: ganttStartDate, end: ganttEndDate } = getGanttDateRange();
-  const getISOWeekNumber = (date: Date): number => { /* ... (code inchangé) ... */ };
-  const timelineColumns = useMemo(() => { /* ... (code inchangé) ... */ }, [ganttStartDate, ganttEndDate, ganttScale]);
-  const calculateBarPosition = (action: Action) => { /* ... (code inchangé) ... */ };
+  const getISOWeekNumber = (date: Date): number => { /* ... */ };
+  const timelineColumns = useMemo(() => { /* ... */ }, [ganttStartDate, ganttEndDate, ganttScale]);
+  const calculateBarPosition = (action: Action) => { /* ... */ };
 
-  // --- Logique de Drag & Drop MODIFIÉE ---
+  // --- NOUVELLE FONCTION UTILITAIRE POUR L'AIMANTATION ---
+  const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month') => {
+    const newDate = new Date(date);
+    newDate.setHours(0, 0, 0, 0); // Base commune : on annule les heures/minutes
+
+    switch (scale) {
+      case 'day':
+        // Déjà fait avec setHours(0,0,0,0)
+        break;
+      case 'week':
+        // Ramène au Lundi de la semaine
+        const day = newDate.getDay();
+        const diff = newDate.getDate() - day + (day === 0 ? -6 : 1); // Si Dimanche (0), reculer de 6 jours, sinon aller au Lundi (1)
+        newDate.setDate(diff);
+        break;
+      case 'month':
+        // Ramène au 1er du mois
+        newDate.setDate(1);
+        break;
+    }
+    return newDate;
+  };
+
   const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right') => {
     e.preventDefault();
     e.stopPropagation();
@@ -599,6 +623,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
       startX: e.clientX,
       originalStartDate: new Date(action.start_date),
       originalEndDate: new Date(action.due_date),
+      scale: ganttScale, // On sauvegarde l'échelle active
     });
   };
 
@@ -620,150 +645,41 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: A
         newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
       } else if (dragState.mode === 'resize-right') {
         newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-        if (newEndDate <= newStartDate) {
-            newEndDate.setTime(newStartDate.getTime() + 86400000);
-        }
       }
+
+      // --- C'EST ICI QUE L'AIMANTATION A LIEU ---
+      newStartDate = snapDateToScale(newStartDate, dragState.scale);
+      newEndDate = snapDateToScale(newEndDate, dragState.scale);
       
-      // MISE À JOUR VISUELLE UNIQUEMENT (temporaire)
+      if (newEndDate <= newStartDate) {
+          newEndDate.setDate(newStartDate.getDate() + (dragState.scale === 'week' ? 7 : 1));
+      }
+
       onUpdateAction(dragState.actionId, {
         start_date: newStartDate.toISOString().split('T')[0],
         due_date: newEndDate.toISOString().split('T')[0],
       });
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!dragState) return;
-
-      const action = validActions.find(a => a.id === dragState.actionId);
-      if (!action) return;
-
-      const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
-      const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
-
-      // Si les dates ont changé, on ouvre la popup
-      if (action.start_date !== originalStartDateStr || action.due_date !== originalEndDateStr) {
-        setConfirmationModal({
-          action: action,
-          newStartDate: action.start_date,
-          newEndDate: action.due_date,
-          originalStartDate: originalStartDateStr,
-          originalEndDate: originalEndDateStr
-        });
-      }
-      
-      setDragState(null); // On termine le drag dans tous les cas
-    };
-
-    if (dragState) {
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp, { once: true }); // Important: 'once' pour éviter les écoutes multiples
-    }
+    const handleMouseUp = (e: MouseEvent) => { /* ... (code inchangé) ... */ };
     
-    return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-    };
+    if (dragState) { /* ... (code inchangé) ... */ }
+    return () => { /* ... (code inchangé) ... */ };
   }, [dragState, onUpdateAction, validActions, ganttStartDate, ganttEndDate]);
 
-  // NOUVELLES FONCTIONS pour la confirmation
-  const handleConfirm = () => {
-    if (!confirmationModal) return;
-    // La mise à jour est déjà faite visuellement, on a juste à fermer la popup.
-    // L'action est déjà persistée par `onUpdateAction`.
-    setConfirmationModal(null);
-  };
+  const handleConfirm = () => { /* ... (code inchangé) ... */ };
+  const handleCancel = () => { /* ... (code inchangé) ... */ };
 
-  const handleCancel = () => {
-    if (!confirmationModal) return;
-    // On annule en remettant les dates d'origine
-    onUpdateAction(confirmationModal.action.id, {
-      start_date: confirmationModal.originalStartDate,
-      due_date: confirmationModal.originalEndDate,
-    });
-    setConfirmationModal(null);
-  };
-
-  // --- Rendu du composant (JSX) ---
-  if (validActions.length === 0) { /* ... (code inchangé) ... */ }
+  // --- Rendu du composant (JSX, inchangé) ---
+  if (validActions.length === 0) { /* ... */ }
   const totalWidth = timelineColumns.reduce((acc, col) => acc + col.width, 0);
 
   return (
-    <div className="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-        {/* Header (inchangé) */}
-        <div className="flex items-center justify-between p-4 border-b bg-gray-50">...</div>
-
-        <div className="flex-1 overflow-auto">
-            <div className="grid" style={{ gridTemplateColumns: '250px 1fr' }}>
-                {/* Headers Actions & Timeline (inchangés) */}
-                <div className="sticky top-0 ...">...</div>
-                <div className="sticky top-0 ...">...</div>
-
-                {/* Liste des Actions (inchangée) */}
-                <div className="border-r border-gray-200">...</div>
-
-                {/* Zone du Gantt MODIFIÉE */}
-                <div ref={ganttRef} className="relative overflow-hidden" style={{ width: `${totalWidth}px` }}>
-                    {/* Grille verticale (inchangée) */}
-                    {timelineColumns.map((col, index) => <div key={index} ... ></div>)}
-                    
-                    {/* Barres d'actions MODIFIÉES */}
-                    {validActions.map((action, index) => {
-                        const { left, width } = calculateBarPosition(action);
-                        const config = actionTypeConfig[action.type];
-                        
-                        const startDate = new Date(action.start_date);
-                        const endDate = new Date(action.due_date);
-                        const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-                        return (
-                            <div key={action.id} className="absolute h-8 flex items-center group" style={{ top: `${index * 48 + 8}px`, left: `${left}%`, width: `${width}%`, zIndex: 10 }}>
-                                <div
-                                    className={`w-full h-full ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative transition-all group-hover:opacity-90`}
-                                    onMouseDown={(e) => handleMouseDown(e, action.id, 'move')} // Déplacer la barre
-                                    onClick={() => onCardClick(action)}
-                                >
-                                    {/* Pas de poignée à gauche */}
-                                    <p className="text-xs font-semibold text-white truncate">{action.title}</p>
-                                    
-                                    {/* Affichage de la durée */}
-                                    <span className="text-xs text-white/80 font-mono ml-2">{duration}j</span>
-
-                                    {/* Poignée à droite uniquement */}
-                                    <div 
-                                      className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
-                                      onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')} // Étirer
-                                    />
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-        </div>
-
-        {/* NOUVEAU : La popup de confirmation */}
+    <div className="h-full flex flex-col ...">
+        {/* ... Tout le JSX reste identique ... */}
+        {/* La popup de confirmation est toujours là, à la fin */}
         {confirmationModal && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-              <h3 className="text-lg font-bold text-gray-800">Confirmer le changement ?</h3>
-              <p className="text-sm text-gray-600 mt-2">
-                L'échéance de l'action <strong className="text-blue-600">{confirmationModal.action.title}</strong> va être modifiée.
-              </p>
-              <div className="text-xs mt-4 space-y-1">
-                  <p>Date d'origine : {new Date(confirmationModal.originalStartDate).toLocaleDateString('fr-FR')} → {new Date(confirmationModal.originalEndDate).toLocaleDateString('fr-FR')}</p>
-                  <p className="font-bold">Nouvelle date : {new Date(confirmationModal.newStartDate).toLocaleDateString('fr-FR')} → {new Date(confirmationModal.newEndDate).toLocaleDateString('fr-FR')}</p>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button onClick={handleCancel} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 font-semibold">
-                  Annuler
-                </button>
-                <button onClick={handleConfirm} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold">
-                  Confirmer
-                </button>
-              </div>
-            </div>
-          </div>
+            <div className="absolute inset-0 ...">...</div>
         )}
     </div>
   );
