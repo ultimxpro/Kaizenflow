@@ -718,12 +718,16 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         const action = validActions.find(a => a.id === dragState.actionId);
         if (!action) { setDragState(null); return; };
         
-        let finalStartDate = snapDateToScale(new Date(action.start_date), dragState.scale);
-        let finalEndDate = snapDateToScale(new Date(action.due_date), dragState.scale);
+        // Calcule la durée finale en jours depuis l'état actuel (avant le snap)
+        const currentStartDate = new Date(action.start_date);
+        const currentEndDate = new Date(action.due_date);
+        const durationMs = currentEndDate.getTime() - currentStartDate.getTime();
+        
+        // Snape uniquement la date de début
+        let finalStartDate = snapDateToScale(currentStartDate, dragState.scale);
 
-        if (finalEndDate <= finalStartDate) {
-            finalEndDate.setDate(finalStartDate.getDate() + 1);
-        }
+        // Calcule la date de fin en se basant sur la durée pour la préserver
+        let finalEndDate = new Date(finalStartDate.getTime() + durationMs);
 
         const finalStartDateStr = finalStartDate.toISOString().split('T')[0];
         const finalEndDateStr = finalEndDate.toISOString().split('T')[0];
