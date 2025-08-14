@@ -4,13 +4,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { A3Module, User } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
 import { useAuth } from '../../../contexts/AuthContext';
-import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check, UserPlus } from 'lucide-react';
+import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 type ActionType = 'simple' | 'securisation' | 'poka-yoke';
 type ActionStatus = 'À faire' | 'En cours' | 'Terminé';
-
-// Note: The 'User' interface is now imported from 'database.ts'
 
 interface Action {
     id: string;
@@ -108,20 +106,11 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
   );
 };
 
-// --- FORMULAIRE D'ACTION (Refonte complète du style) ---
-const ActionModal = ({ isOpen, onClose, onSave, action, allUsers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, allUsers: User[]}) => {
+// --- FORMULAIRE D'ACTION (Refonte avec membres du projet) ---
+const ActionModal = ({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
     if (!isOpen) return null;
     
     const [formData, setFormData] = useState<Partial<Action>>(action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: new Date().toISOString().split('T')[0], start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 });
-    const [isAddingUser, setIsAddingUser] = useState(false);
-    const [newUserName, setNewUserName] = useState('');
-
-    // For now, new users are not persisted in the DB, so we don't need this part.
-    // In a real app, you would call a function from your context like `createUser`.
-    const handleAddNewUser = () => {
-        alert("La création de nouveaux utilisateurs n'est pas encore implémentée.");
-        setIsAddingUser(false);
-    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -174,7 +163,7 @@ const ActionModal = ({ isOpen, onClose, onSave, action, allUsers }: { isOpen: bo
 
                     <PDCASection title="Équipe" icon={<Users size={20} />}>
                         <div className="flex flex-wrap gap-4">
-                            {allUsers.map(user => {
+                            {projectMembers.map(user => {
                               const isSelected = (formData.assignee_ids || []).includes(user.id);
                               const isLeader = formData.leader_id === user.id;
                               return (
@@ -192,18 +181,6 @@ const ActionModal = ({ isOpen, onClose, onSave, action, allUsers }: { isOpen: bo
                                 </div>
                               );
                             })}
-                            {!isAddingUser ? (
-                                <button type="button" onClick={() => setIsAddingUser(true)} className="flex flex-col items-center justify-center w-24 h-24 bg-slate-200 text-slate-500 rounded-lg hover:bg-slate-300 transition-colors">
-                                    <UserPlus size={24} />
-                                    <span className="text-xs mt-1">Ajouter</span>
-                                </button>
-                            ) : (
-                                <div className="p-2 bg-slate-200 rounded-lg">
-                                    <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Nom du membre" className="p-1 text-sm w-full border rounded mb-2" />
-                                    <button type="button" onClick={handleAddNewUser} className="text-xs w-full bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">Confirmer</button>
-                                    <button type="button" onClick={() => setIsAddingUser(false)} className="text-xs w-full mt-1">Annuler</button>
-                                </div>
-                            )}
                         </div>
                     </PDCASection>
 
@@ -425,8 +402,8 @@ const GanttView = ({ actions, users, onCardClick }) => {
 
 // --- COMPOSANT PRINCIPAL ---
 export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, onClose }) => {
-  const { users: allUsers } = useAuth(); // Getting all users from AuthContext
-  const { updateA3Module } = useDatabase();
+  const { users: allUsersInApp } = useAuth();
+  const { projectMembers, updateA3Module } = useDatabase();
     
   const [view, setView] = useState('home');
   const [actions, setActions] = useState<Action[]>([]);
@@ -434,6 +411,15 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [editingAction, setEditingAction] = useState<Action | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+
+  // NOUVELLE LOGIQUE : Récupérer uniquement les membres du projet actuel
+  const currentProjectMembers = useMemo(() => {
+    const memberIds = projectMembers
+      .filter(pm => pm.project === module.project)
+      .map(pm => pm.user);
+    return allUsersInApp.filter(user => memberIds.includes(user.id));
+  }, [projectMembers, allUsersInApp, module.project]);
+
 
   useEffect(() => {
     // Load actions from the module's content
@@ -511,10 +497,10 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
             <main className="flex-1 overflow-y-auto min-h-0">
                 {loading ? <div className="text-center p-8">Chargement...</div> : (
                     <>
-                        {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={allUsers} onCardClick={openActionModal} />}
-                        {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={allUsers} onCardClick={openActionModal} />}
-                        {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={allUsers} onCardClick={openActionModal} />}
-                        {view === 'gantt' && <GanttView actions={actions} users={allUsers} onCardClick={openActionModal} />}
+                        {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
+                        {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
+                        {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
+                        {view === 'gantt' && <GanttView actions={actions} users={currentProjectMembers} onCardClick={openActionModal} />}
                     </>
                 )}
             </main>
@@ -525,7 +511,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
           onClose={() => { setIsActionModalOpen(false); setEditingAction(null); }}
           onSave={handleSaveAction}
           action={editingAction}
-          allUsers={allUsers}
+          projectMembers={currentProjectMembers}
         />
 
         {showHelp && (
