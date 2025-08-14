@@ -549,76 +549,304 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
 };
 
 const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: User[], onCardClick: (action: Action) => void }) => {
-    if (actions.length === 0) return <div className="text-center p-8 text-gray-500">Aucune action à afficher.</div>;
-
-    const sortedActions = [...actions].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    const [scale, setScale] = useState<'day' | 'week' | 'month'>('day');
     
-    const validActions = sortedActions.filter(a => a.start_date && a.due_date && !isNaN(new Date(a.start_date).getTime()) && !isNaN(new Date(a.due_date).getTime()));
-    if(validActions.length === 0) return <div className="text-center p-8 text-gray-500">Aucune action avec des dates valides.</div>;
+    if (actions.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
+                <GanttChartSquare className="w-16 h-16 mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold mb-2">Aucune action planifiée</h3>
+                <p className="text-sm">Créez des actions avec des dates pour voir le diagramme de Gantt</p>
+            </div>
+        );
+    }
 
+    const validActions = actions.filter(a => 
+        a.start_date && a.due_date && 
+        !isNaN(new Date(a.start_date).getTime()) && 
+        !isNaN(new Date(a.due_date).getTime())
+    ).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    
+    if (validActions.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
+                <Calendar className="w-16 h-16 mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold mb-2">Dates manquantes</h3>
+                <p className="text-sm">Ajoutez des dates de début et de fin aux actions pour voir le Gantt</p>
+            </div>
+        );
+    }
+
+    // Calcul des dates limites
     const minTime = Math.min(...validActions.map(a => new Date(a.start_date).getTime()));
     const maxTime = Math.max(...validActions.map(a => new Date(a.due_date).getTime()));
     
     const startDate = new Date(minTime);
-    startDate.setDate(startDate.getDate() - 2);
     const endDate = new Date(maxTime);
-    endDate.setDate(endDate.getDate() + 2);
-
-    const totalDays = Math.max(1, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-
-    const getDaysFromStart = (dateStr: string) => (new Date(dateStr).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-    const todayPosition = (getDaysFromStart(new Date().toISOString()) / totalDays) * 100;
-
-    // Generate timeline labels
-    const timelineLabels = [];
-    let currentDay = new Date(startDate);
-    while(currentDay <= endDate) {
-        timelineLabels.push(new Date(currentDay));
-        currentDay.setDate(currentDay.getDate() + 1);
-    }
     
+    // Ajustement des dates selon l'échelle
+    if (scale === 'week') {
+        startDate.setDate(startDate.getDate() - startDate.getDay()); // Début de semaine
+        endDate.setDate(endDate.getDate() + (6 - endDate.getDay()) + 7); // Fin de semaine + 1 semaine
+    } else if (scale === 'month') {
+        startDate.setDate(1); // Début du mois
+        endDate.setMonth(endDate.getMonth() + 1, 1); // Début du mois suivant
+    } else {
+        startDate.setDate(startDate.getDate() - 3); // 3 jours avant
+        endDate.setDate(endDate.getDate() + 3); // 3 jours après
+    }
+
+    // Calcul des unités et largeur
+    const getTimeUnits = () => {
+        const units = [];
+        let current = new Date(startDate);
+        
+        while (current <= endDate) {
+            units.push(new Date(current));
+            
+            if (scale === 'day') {
+                current.setDate(current.getDate() + 1);
+            } else if (scale === 'week') {
+                current.setDate(current.getDate() + 7);
+            } else {
+                current.setMonth(current.getMonth() + 1);
+            }
+        }
+        return units;
+    };
+
+    const timeUnits = getTimeUnits();
+    const unitWidth = scale === 'day' ? 40 : scale === 'week' ? 80 : 120;
+    const totalWidth = timeUnits.length * unitWidth;
+
+    const getPositionAndWidth = (action: Action) => {
+        const actionStart = new Date(action.start_date);
+        const actionEnd = new Date(action.due_date);
+        
+        let startPos = 0;
+        let endPos = 0;
+        
+        if (scale === 'day') {
+            startPos = (actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+            endPos = (actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+        } else if (scale === 'week') {
+            startPos = (actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7);
+            endPos = (actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7);
+        } else {
+            const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
+            const actionStartMonth = actionStart.getFullYear() * 12 + actionStart.getMonth();
+            const actionEndMonth = actionEnd.getFullYear() * 12 + actionEnd.getMonth();
+            
+            startPos = actionStartMonth - startMonth;
+            endPos = actionEndMonth - startMonth + 1;
+        }
+        
+        return {
+            left: Math.max(0, startPos * unitWidth),
+            width: Math.max(unitWidth * 0.1, (endPos - startPos) * unitWidth)
+        };
+    };
+
+    const formatTimeUnit = (date: Date) => {
+        if (scale === 'day') {
+            return {
+                main: date.getDate().toString(),
+                sub: date.getDate() === 1 ? date.toLocaleDateString('fr-FR', { month: 'short' }) : ''
+            };
+        } else if (scale === 'week') {
+            const weekEnd = new Date(date);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            return {
+                main: `S${Math.ceil(date.getDate() / 7)}`,
+                sub: date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
+            };
+        } else {
+            return {
+                main: date.toLocaleDateString('fr-FR', { month: 'short' }),
+                sub: date.getFullYear().toString()
+            };
+        }
+    };
+
+    const today = new Date();
+    const todayPosition = (() => {
+        if (scale === 'day') {
+            return ((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * unitWidth;
+        } else if (scale === 'week') {
+            return ((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) * unitWidth;
+        } else {
+            const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
+            const todayMonth = today.getFullYear() * 12 + today.getMonth();
+            return (todayMonth - startMonth) * unitWidth;
+        }
+    })();
+
     return (
-        <div className="bg-white border border-gray-200 p-4 rounded-lg shadow-md overflow-x-auto h-full">
-            <div className="relative pt-8" style={{ minWidth: `${totalDays * 40}px` }}>
-                {/* Timeline Axis */}
-                <div className="sticky top-0 bg-white z-20 h-8 flex border-b-2 mb-2">
-                    {timelineLabels.map((day, index) => (
-                        <div key={index} className="flex-1 text-center text-xs text-gray-500 border-r">
-                            {day.getDate() === 1 ? day.toLocaleDateString('fr-FR', { month: 'short' }) : day.getDate()}
-                        </div>
+        <div className="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            {/* Header avec sélecteur d'échelle */}
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <GanttChartSquare className="w-5 h-5 text-blue-600" />
+                    Diagramme de Gantt
+                </h3>
+                <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                    {[
+                        { key: 'day', label: 'Jours', icon: '📅' },
+                        { key: 'week', label: 'Semaines', icon: '📊' },
+                        { key: 'month', label: 'Mois', icon: '🗓️' }
+                    ].map(({ key, label, icon }) => (
+                        <button
+                            key={key}
+                            onClick={() => setScale(key as any)}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                                scale === key
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                            <span>{icon}</span>
+                            {label}
+                        </button>
                     ))}
                 </div>
+            </div>
 
-                {/* Today Marker */}
-                {todayPosition >= 0 && todayPosition <= 100 &&
-                    <div className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-10" style={{ left: `${todayPosition}%` }}>
-                        <span className="absolute -top-5 -translate-x-1/2 text-xs bg-red-500 text-white px-1 rounded">Auj.</span>
+            {/* Zone de défilement horizontal */}
+            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+                <div className="relative" style={{ width: `${totalWidth}px`, minHeight: '100%' }}>
+                    {/* Timeline Header */}
+                    <div className="sticky top-0 bg-white z-20 border-b-2 border-gray-200">
+                        <div className="flex h-16">
+                            {timeUnits.map((unit, index) => {
+                                const formatted = formatTimeUnit(unit);
+                                return (
+                                    <div
+                                        key={index}
+                                        className="border-r border-gray-200 flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-50 to-white"
+                                        style={{ width: `${unitWidth}px` }}
+                                    >
+                                        <div className="text-sm font-semibold text-gray-900">{formatted.main}</div>
+                                        {formatted.sub && (
+                                            <div className="text-xs text-gray-500">{formatted.sub}</div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-                }
 
-                {/* Action Bars */}
-                <div className="space-y-3">
-                    {validActions.map((action) => {
-                        const left = (getDaysFromStart(action.start_date) / totalDays) * 100;
-                        const duration = Math.max(1, getDaysFromStart(action.due_date) - getDaysFromStart(action.start_date));
-                        const width = (duration / totalDays) * 100;
-                        const config = actionTypeConfig[action.type];
-                        const leader = users.find(u => u.id === action.leader_id);
-                        const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString('fr-FR')} au ${new Date(action.due_date).toLocaleDateString('fr-FR')}<br>Responsable: ${leader?.nom || 'N/A'}`;
+                    {/* Ligne "Aujourd'hui" */}
+                    {todayPosition >= 0 && todayPosition <= totalWidth && (
+                        <div
+                            className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-10 pointer-events-none"
+                            style={{ left: `${todayPosition}px` }}
+                        >
+                            <div className="absolute -top-6 -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1 rounded-md font-medium">
+                                Aujourd'hui
+                            </div>
+                        </div>
+                    )}
 
-                        return (
-                            <div key={action.id} className="w-full h-10 flex items-center">
-                                <div className="w-1/4 pr-4 text-sm font-medium truncate text-gray-700">{action.title}</div>
-                                <div className="w-3/4 h-full relative">
+                    {/* Grille de fond */}
+                    <div className="absolute inset-0 top-16">
+                        {timeUnits.map((_, index) => (
+                            <div
+                                key={index}
+                                className="absolute top-0 bottom-0 border-r border-gray-100"
+                                style={{ left: `${index * unitWidth}px` }}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Barres d'actions */}
+                    <div className="relative pt-4 pb-4" style={{ marginTop: '64px' }}>
+                        {validActions.map((action, index) => {
+                            const { left, width } = getPositionAndWidth(action);
+                            const config = actionTypeConfig[action.type];
+                            const assignees = action.assignee_ids.map(id => users.find(u => u.id === id)).filter(Boolean);
+                            
+                            const tooltipContent = `
+                                <div class="text-left">
+                                    <div class="font-bold text-sm mb-1">${action.title}</div>
+                                    <div class="text-xs text-gray-600 mb-1">
+                                        ${new Date(action.start_date).toLocaleDateString('fr-FR')} → 
+                                        ${new Date(action.due_date).toLocaleDateString('fr-FR')}
+                                    </div>
+                                    <div class="text-xs">
+                                        <span class="font-medium">Équipe:</span> 
+                                        ${assignees.map(u => u?.nom).join(', ') || 'Non assigné'}
+                                    </div>
+                                    <div class="text-xs mt-1">
+                                        <span class="inline-block px-1.5 py-0.5 rounded text-xs" style="background-color: ${config.color.replace('border-', 'bg-').replace('-500', '-100')}; color: ${config.textColor.replace('text-', '').replace('-600', '')}">
+                                            ${config.icon} ${config.name}
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
+
+                            return (
+                                <div
+                                    key={action.id}
+                                    className="absolute flex items-center"
+                                    style={{
+                                        top: `${index * 50 + 10}px`,
+                                        left: `${left}px`,
+                                        width: `${width}px`,
+                                        height: '36px'
+                                    }}
+                                >
                                     <Tooltip content={tooltipContent}>
-                                        <div onClick={() => onCardClick(action)} className={`absolute h-3/4 top-1/2 -translate-y-1/2 rounded ${config.barBg} cursor-pointer flex items-center px-2 text-white text-xs font-semibold overflow-hidden`} style={{ left: `${left}%`, width: `${width}%` }}>
-                                          <span className="truncate">{action.title}</span>
+                                        <div
+                                            onClick={() => onCardClick(action)}
+                                            className={`w-full h-full ${config.barBg} rounded-lg cursor-pointer flex items-center px-3 text-white text-sm font-medium shadow-sm hover:shadow-md transition-all hover:scale-105 border-l-4`}
+                                            style={{ borderLeftColor: config.color.replace('border-', '').replace('-500', '') }}
+                                        >
+                                            <div className="flex items-center gap-2 w-full min-w-0">
+                                                <span className="text-xs">{config.icon}</span>
+                                                <span className="truncate flex-1">{action.title}</span>
+                                                {assignees.length > 0 && (
+                                                    <div className="flex -space-x-1">
+                                                        {assignees.slice(0, 3).map((user, i) => (
+                                                            <img
+                                                                key={i}
+                                                                src={user?.avatarUrl || `https://i.pravatar.cc/150?u=${user?.id}`}
+                                                                alt={user?.nom}
+                                                                className="w-5 h-5 rounded-full border border-white"
+                                                            />
+                                                        ))}
+                                                        {assignees.length > 3 && (
+                                                            <div className="w-5 h-5 rounded-full bg-gray-600 border border-white flex items-center justify-center text-xs">
+                                                                +{assignees.length - 3}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </Tooltip>
                                 </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer avec légende */}
+            <div className="border-t bg-gray-50 p-3">
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                    <div className="flex items-center gap-4">
+                        <span className="font-medium">Légende :</span>
+                        {Object.entries(actionTypeConfig).map(([key, config]) => (
+                            <div key={key} className="flex items-center gap-1">
+                                <div className={`w-3 h-3 ${config.barBg} rounded`}></div>
+                                <span>{config.name}</span>
                             </div>
-                        );
-                    })}
+                        ))}
+                    </div>
+                    <div className="text-right">
+                        <div>Période : {startDate.toLocaleDateString('fr-FR')} → {endDate.toLocaleDateString('fr-FR')}</div>
+                        <div>{validActions.length} action(s) planifiée(s)</div>
+                    </div>
                 </div>
             </div>
         </div>
