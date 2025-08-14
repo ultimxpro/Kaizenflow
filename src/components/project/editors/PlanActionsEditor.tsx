@@ -2,16 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { A3Module } from '../../../types/database';
-import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check } from 'lucide-react';
+import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check, Trash2, UserPlus } from 'lucide-react';
 
-// --- TYPES & INTERFACES (Mise à jour pour multi-assignés) ---
+// --- TYPES & INTERFACES ---
 type ActionType = 'simple' | 'securisation' | 'poka-yoke';
 type ActionStatus = 'À faire' | 'En cours' | 'Terminé';
 
 interface User {
     id: string;
     name: string;
-    avatarUrl?: string; // Ajout pour les photos
+    avatarUrl?: string;
 }
 
 interface Action {
@@ -22,8 +22,8 @@ interface Action {
     due_date: string;
     start_date: string;
     type: ActionType;
-    assignee_ids: string[]; // Changé pour supporter plusieurs assignés
-    leader_id?: string; // Ajout pour identifier le leader
+    assignee_ids: string[];
+    leader_id?: string;
     effort: number;
     gain: number;
 }
@@ -34,29 +34,15 @@ interface PlanActionsEditorProps {
   onClose: () => void;
 }
 
-// --- DONNÉES MOCK (Mise à jour) ---
-const mockUsers: User[] = [
-    { id: 'user-1', name: 'Claire Martin', avatarUrl: 'https://i.pravatar.cc/150?u=user-1' },
-    { id: 'user-2', name: 'Jean Dupont', avatarUrl: 'https://i.pravatar.cc/150?u=user-2' },
-    { id: 'user-3', name: 'Pierre Simon', avatarUrl: 'https://i.pravatar.cc/150?u=user-3' },
-];
-
-const mockData: Action[] = [
-  { id: '1', title: 'Optimiser le rangement des outils', status: 'À faire', due_date: '2025-08-25', start_date: '2025-08-10', type: 'simple', assignee_ids: ['user-1', 'user-2'], leader_id: 'user-1', effort: 3, gain: 8, description: 'Mise en place du 5S pour les postes 1 et 2.' },
-  { id: '2', title: 'Créer un gabarit de perçage', status: 'À faire', due_date: '2025-09-30', start_date: '2025-09-01', type: 'poka-yoke', assignee_ids: ['user-3'], leader_id: 'user-3', effort: 8, gain: 9, description: 'Gabarit pour la pièce XA-42 pour éviter les erreurs.' },
-  { id: '3', title: 'Mettre à jour la doc sécurité', status: 'En cours', due_date: new Date(new Date().setDate(new Date().getDate() - 5)).toISOString().split('T')[0], start_date: '2025-08-05', type: 'securisation', assignee_ids: ['user-1'], leader_id: 'user-1', effort: 6, gain: 6, description: 'Revoir la documentation suite au nouvel équipement.' },
-  { id: '4', title: 'Installer un carter de protection', status: 'Terminé', due_date: '2025-08-10', start_date: '2025-08-01', type: 'securisation', assignee_ids: ['user-2'], leader_id: 'user-2', effort: 7, gain: 4, description: 'Carter sur la machine Z, zone de coupe.' },
-  { id: '5', title: 'Former l\'équipe au nouveau process', status: 'En cours', due_date: new Date(new Date().setDate(new Date().getDate() + 3)).toISOString().split('T')[0], start_date: '2025-09-05', type: 'simple', assignee_ids: ['user-2', 'user-3'], leader_id: 'user-2', effort: 9, gain: 2, description: 'Formation sur le nouveau logiciel de gestion.' },
-];
-
-// --- CONFIGURATION VISUELLE (Conservée) ---
+// --- CONFIGURATION VISUELLE ---
 const actionTypeConfig = {
   simple: { name: 'Action Simple', icon: '💡', color: 'border-blue-500', textColor: 'text-blue-600', barBg: 'bg-blue-500', a3Color: 'bg-blue-100 text-blue-800' },
   securisation: { name: 'Sécurisation', icon: '🛡️', color: 'border-red-500', textColor: 'text-red-600', barBg: 'bg-red-500', a3Color: 'bg-red-100 text-red-800' },
   'poka-yoke': { name: 'Poka-Yoke', icon: '🧩', color: 'border-yellow-500', textColor: 'text-yellow-600', barBg: 'bg-yellow-500', a3Color: 'bg-yellow-100 text-yellow-800' },
 };
 
-// --- COMPOSANTS UTILITAIRES (Améliorés) ---
+
+// --- COMPOSANTS UTILITAIRES ---
 const Tooltip = ({ content, children }: { content: string, children: React.ReactNode }) => (
     <div className="relative group">
         {children}
@@ -85,10 +71,10 @@ const DateIndicator = ({ dueDate }: { dueDate: string }) => {
     );
 };
 
-const AssigneeAvatars = ({ assignee_ids, leader_id }) => (
+const AssigneeAvatars = ({ assignee_ids, leader_id, users }) => (
   <div className="flex items-center -space-x-2">
     {assignee_ids.map(id => {
-      const user = mockUsers.find(u => u.id === id);
+      const user = users.find(u => u.id === id);
       if (!user) return null;
       const isLeader = id === leader_id;
       return (
@@ -103,7 +89,7 @@ const AssigneeAvatars = ({ assignee_ids, leader_id }) => (
   </div>
 );
 
-const ActionCard = ({ action, onDragStart, onClick }: { action: Action, onDragStart: (e: React.DragEvent, action: Action) => void, onClick: (action: Action) => void }) => {
+const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, users: User[], onDragStart: (e: React.DragEvent, action: Action) => void, onClick: (action: Action) => void }) => {
   const config = actionTypeConfig[action.type];
   
   return (
@@ -114,7 +100,7 @@ const ActionCard = ({ action, onDragStart, onClick }: { action: Action, onDragSt
       className={`bg-white border border-gray-200 rounded-lg shadow-sm mb-3 border-l-4 ${config.color} p-3 hover:shadow-md hover:border-gray-300 cursor-pointer transition-all`}
     >
       <div className="flex justify-between items-start mb-2">
-          <AssigneeAvatars assignee_ids={action.assignee_ids} leader_id={action.leader_id} />
+          <AssigneeAvatars assignee_ids={action.assignee_ids} leader_id={action.leader_id} users={users} />
       </div>
       <h3 className="font-bold text-gray-800 text-sm">{action.title}</h3>
       <div className="mt-3">
@@ -124,11 +110,13 @@ const ActionCard = ({ action, onDragStart, onClick }: { action: Action, onDragSt
   );
 };
 
-// --- FORMULAIRE D'ACTION (Fortement amélioré) ---
-const ActionModal = ({ isOpen, onClose, onSave, action }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null }) => {
+// --- FORMULAIRE D'ACTION (Refonte complète du style) ---
+const ActionModal = ({ isOpen, onClose, onSave, action, users, setUsers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, users: User[], setUsers: (users: User[]) => void }) => {
     if (!isOpen) return null;
     
     const [formData, setFormData] = useState<Partial<Action>>(action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: new Date().toISOString().split('T')[0], start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 });
+    const [isAddingUser, setIsAddingUser] = useState(false);
+    const [newUserName, setNewUserName] = useState('');
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -148,7 +136,19 @@ const ActionModal = ({ isOpen, onClose, onSave, action }: { isOpen: boolean, onC
       if((formData.assignee_ids || []).includes(userId)) {
         setFormData(prev => ({...prev, leader_id: userId}));
       }
-    }
+    };
+
+    const handleAddNewUser = () => {
+        if (newUserName.trim() === '') return;
+        const newUser: User = {
+            id: `user-${Date.now()}`,
+            name: newUserName.trim(),
+            avatarUrl: `https://i.pravatar.cc/150?u=user-${Date.now()}`
+        };
+        setUsers([...users, newUser]);
+        setNewUserName('');
+        setIsAddingUser(false);
+    };
 
     const getQuadrant = (gain: number, effort: number) => {
       if (gain >= 5 && effort < 5) return { name: "Quick Win 🔥", color: "bg-green-200" };
@@ -158,70 +158,96 @@ const ActionModal = ({ isOpen, onClose, onSave, action }: { isOpen: boolean, onC
     };
     const currentQuadrant = getQuadrant(formData.gain, formData.effort);
 
+    const PDCASection = ({ title, icon, children }) => (
+        <div className="bg-slate-100 border border-slate-200 rounded-lg p-4">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center">
+                {icon} <span className="ml-2">{title}</span>
+            </h3>
+            {children}
+        </div>
+    );
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl p-6 md:p-8 w-full max-w-3xl text-gray-800 max-h-[90vh] overflow-y-auto">
                 <h2 className="text-2xl font-bold mb-6">{action ? "Modifier l'action" : "Créer une action"}</h2>
-                <form onSubmit={(e) => { e.preventDefault(); onSave(formData as Action); }}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                        <input name="title" value={formData.title} onChange={handleChange} placeholder="Titre de l'action" className="p-2 border bg-gray-50 border-gray-300 rounded col-span-2" required />
-                        <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Description" className="p-2 border bg-gray-50 border-gray-300 rounded col-span-2 h-24"></textarea>
-                        
-                        <div className="col-span-2">
-                          <label className="font-semibold text-gray-700 mb-2 block">Équipe</label>
-                          <div className="flex flex-wrap gap-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                            {mockUsers.map(user => {
+                <form onSubmit={(e) => { e.preventDefault(); onSave(formData as Action); }} className="space-y-6">
+                    <PDCASection title="Description" icon={<Layers size={20} />}>
+                        <div className="space-y-4">
+                            <input name="title" value={formData.title} onChange={handleChange} placeholder="Titre de l'action" className="p-2 w-full border bg-white border-gray-300 rounded" required />
+                            <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Description détaillée de l'action..." className="p-2 w-full border bg-white border-gray-300 rounded h-24"></textarea>
+                        </div>
+                    </PDCASection>
+
+                    <PDCASection title="Équipe" icon={<Users size={20} />}>
+                        <div className="flex flex-wrap gap-4">
+                            {users.map(user => {
                               const isSelected = (formData.assignee_ids || []).includes(user.id);
                               const isLeader = formData.leader_id === user.id;
                               return (
-                                <div key={user.id} className="flex flex-col items-center cursor-pointer" onClick={() => toggleAssignee(user.id)}>
-                                  <div className={`relative p-1 rounded-full transition-all ${isSelected ? 'bg-blue-200' : ''}`}>
-                                    <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
-                                    {isSelected && <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white"><Check size={12} className="text-white"/></div>}
+                                <div key={user.id} className="text-center">
+                                  <div onClick={() => toggleAssignee(user.id)} className={`relative p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'bg-blue-200 ring-2 ring-blue-400' : 'hover:bg-gray-200'}`}>
+                                    <img src={user.avatarUrl} alt={user.name} className="w-14 h-14 rounded-full" />
+                                    {isLeader && <Crown className="absolute -top-1 -right-1 w-5 h-5 text-yellow-500 bg-white rounded-full p-0.5" />}
                                   </div>
-                                  <span className="text-xs mt-1 text-gray-600">{user.name}</span>
+                                  <span className="text-xs mt-1 font-semibold text-gray-700">{user.name}</span>
                                   {isSelected && (
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className={`mt-1 text-xs px-2 py-0.5 rounded-full ${isLeader ? 'bg-yellow-400 text-black' : 'bg-gray-200'}`}>
-                                      {isLeader ? 'Leader' : 'Set Leader'}
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className={`mt-1 text-xs px-2 py-0.5 rounded-full ${isLeader ? 'bg-yellow-400 text-black font-bold' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                                      {isLeader ? 'Leader' : 'Promouvoir'}
                                     </button>
                                   )}
                                 </div>
                               );
                             })}
-                          </div>
+                            {!isAddingUser ? (
+                                <button type="button" onClick={() => setIsAddingUser(true)} className="flex flex-col items-center justify-center w-24 h-24 bg-slate-200 text-slate-500 rounded-lg hover:bg-slate-300 transition-colors">
+                                    <UserPlus size={24} />
+                                    <span className="text-xs mt-1">Ajouter</span>
+                                </button>
+                            ) : (
+                                <div className="p-2 bg-slate-200 rounded-lg">
+                                    <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Nom du membre" className="p-1 text-sm w-full border rounded mb-2" />
+                                    <button type="button" onClick={handleAddNewUser} className="text-xs w-full bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">Confirmer</button>
+                                    <button type="button" onClick={() => setIsAddingUser(false)} className="text-xs w-full mt-1">Annuler</button>
+                                </div>
+                            )}
                         </div>
+                    </PDCASection>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <select name="status" value={formData.status} onChange={handleChange} className="p-2 border bg-gray-50 border-gray-300 rounded"><option>À faire</option><option>En cours</option><option>Terminé</option></select>
-                            <div className="relative">
-                                <select name="type" value={formData.type} onChange={handleChange} className="w-full p-2 border bg-gray-50 border-gray-300 rounded appearance-none">
-                                  {Object.entries(actionTypeConfig).map(([key, config]) => <option key={key} value={key}>{config.name}</option>)}
-                                </select>
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">{formData.type ? actionTypeConfig[formData.type].icon : ''}</span>
-                            </div>
-                        </div>
-                         
-                        <div className="grid grid-cols-2 gap-4">
-                          <div><label className="text-sm text-gray-500">Date de début</label><input type="date" name="start_date" value={formData.start_date} onChange={handleChange} className="p-2 border bg-gray-50 border-gray-300 rounded w-full" /></div>
-                          <div><label className="text-sm text-gray-500">Date de fin</label><input type="date" name="due_date" value={formData.due_date} onChange={handleChange} className="p-2 border bg-gray-50 border-gray-300 rounded w-full" /></div>
-                        </div>
-                        
-                        <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
-                            <div className="grid grid-cols-2 gap-6 items-center">
-                                <div>
-                                    <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort} onChange={handleChange} className="w-full" /></div>
-                                    <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain} onChange={handleChange} className="w-full" /></div>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-sm text-gray-500">Position dans la matrice :</p>
-                                    <div className={`mt-2 p-2 rounded-lg font-semibold transition-colors ${currentQuadrant.color}`}>{currentQuadrant.name}</div>
+                    <PDCASection title="Détails" icon={<Table size={20} />}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <select name="status" value={formData.status} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded"><option>À faire</option><option>En cours</option><option>Terminé</option></select>
+                                <div className="relative">
+                                    <select name="type" value={formData.type} onChange={handleChange} className="w-full p-2 border bg-white border-gray-300 rounded appearance-none pl-8">
+                                      {Object.entries(actionTypeConfig).map(([key, config]) => <option key={key} value={key}>{config.name}</option>)}
+                                    </select>
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">{formData.type ? actionTypeConfig[formData.type].icon : ''}</span>
                                 </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div><label className="text-sm text-gray-500">Date de début</label><input type="date" name="start_date" value={formData.start_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" /></div>
+                              <div><label className="text-sm text-gray-500">Date de fin</label><input type="date" name="due_date" value={formData.due_date} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" /></div>
+                            </div>
                         </div>
-                    </div>
-                    <div className="mt-6 flex justify-end gap-4">
-                        <button type="button" onClick={onClose} className="py-2 px-4 bg-gray-200 rounded hover:bg-gray-300">Annuler</button>
-                        <button type="submit" className="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700">Sauvegarder</button>
+                    </PDCASection>
+                    
+                    <PDCASection title="Priorisation" icon={<GanttChartSquare size={20} />}>
+                        <div className="grid grid-cols-2 gap-6 items-center">
+                            <div>
+                                <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort} onChange={handleChange} className="w-full" /></div>
+                                <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain} onChange={handleChange} className="w-full" /></div>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-sm text-gray-500">Position dans la matrice :</p>
+                                <div className={`mt-2 p-2 rounded-lg font-semibold transition-colors ${currentQuadrant.color}`}>{currentQuadrant.name}</div>
+                            </div>
+                        </div>
+                    </PDCASection>
+                    
+                    <div className="mt-8 flex justify-end gap-4">
+                        <button type="button" onClick={onClose} className="py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold">Annuler</button>
+                        <button type="submit" className="py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Sauvegarder l'Action</button>
                     </div>
                 </form>
             </div>
@@ -230,8 +256,8 @@ const ActionModal = ({ isOpen, onClose, onSave, action }: { isOpen: boolean, onC
 };
 
 
-// --- VUES SPÉCIFIQUES (Améliorées avec Drag & Drop) ---
-const HomeView = ({ actions, setActions, onCardClick }) => {
+// --- VUES SPÉCIFIQUES ---
+const HomeView = ({ actions, setActions, users, onCardClick }) => {
     const [draggedItem, setDraggedItem] = useState<Action | null>(null);
     const columns = useMemo(() => {
         const grouped: { [key in ActionType]: Action[] } = { securisation: [], simple: [], 'poka-yoke': [] };
@@ -257,15 +283,15 @@ const HomeView = ({ actions, setActions, onCardClick }) => {
                         <span className="text-lg">{actionTypeConfig[type].icon}</span> {actionTypeConfig[type].name}
                         <span className="text-sm font-normal text-gray-500 ml-auto bg-gray-200 rounded-full px-2">{items.length}</span>
                     </h2>
-                    <div className="overflow-y-auto flex-1 pr-2">{items.map(item => <ActionCard key={item.id} action={item} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
+                    <div className="overflow-y-auto flex-1 pr-2">{items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
                 </div>
             ))}
         </div>
     );
 };
 
-const KanbanByPersonView = ({ actions, setActions, onCardClick }) => {
-    const [selectedUser, setSelectedUser] = useState(mockUsers[0].id);
+const KanbanByPersonView = ({ actions, setActions, users, onCardClick }) => {
+    const [selectedUser, setSelectedUser] = useState(users[0]?.id || '');
     const [draggedItem, setDraggedItem] = useState<Action | null>(null);
     
     const filteredActions = useMemo(() => actions.filter(a => a.assignee_ids.includes(selectedUser)), [actions, selectedUser]);
@@ -286,7 +312,7 @@ const KanbanByPersonView = ({ actions, setActions, onCardClick }) => {
         <div className="flex flex-col h-full">
             <div className="mb-4 flex-shrink-0">
                 <select onChange={(e) => setSelectedUser(e.target.value)} value={selectedUser} className="p-2 border bg-white border-gray-300 rounded shadow-sm text-gray-800">
-                    {mockUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
@@ -296,7 +322,7 @@ const KanbanByPersonView = ({ actions, setActions, onCardClick }) => {
                          onDragEnter={(e) => e.currentTarget.classList.add('bg-blue-50', 'border-blue-300')} 
                          onDragLeave={(e) => e.currentTarget.classList.remove('bg-blue-50', 'border-blue-300')}>
                         <h2 className="font-bold text-gray-700 mb-4 px-1">{status} <span className="text-sm font-normal text-gray-500">{items.length}</span></h2>
-                        <div className="overflow-y-auto flex-1 pr-2">{items.map(item => <ActionCard key={item.id} action={item} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
+                        <div className="overflow-y-auto flex-1 pr-2">{items.map(item => <ActionCard key={item.id} action={item} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
                     </div>
                 ))}
             </div>
@@ -304,7 +330,7 @@ const KanbanByPersonView = ({ actions, setActions, onCardClick }) => {
     );
 };
 
-const MatrixView = ({ actions, setActions, onCardClick }) => {
+const MatrixView = ({ actions, setActions, users, onCardClick }) => {
     const [draggedItem, setDraggedItem] = useState<Action | null>(null);
     const matrix = useMemo(() => {
         const q = { 'quick-wins': [], 'major-projects': [], 'fill-ins': [], 'thankless-tasks': [] };
@@ -338,7 +364,7 @@ const MatrixView = ({ actions, setActions, onCardClick }) => {
             onDragLeave={(e) => e.currentTarget.classList.remove('ring-2', 'ring-blue-400')}>
             <h3 className="font-bold text-center mb-2 text-slate-800">{title} <span className="text-xl">{emoji}</span></h3>
             <div className="matrix-quadrant bg-white bg-opacity-40 rounded p-2 overflow-y-auto flex-grow">
-                {items.map(action => <ActionCard key={action.id} action={action} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
+                {items.map(action => <ActionCard key={action.id} action={action} users={users} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}
             </div>
         </div>
     );
@@ -356,7 +382,7 @@ const MatrixView = ({ actions, setActions, onCardClick }) => {
     );
 };
 
-const GanttView = ({ actions, onCardClick }) => {
+const GanttView = ({ actions, users, onCardClick }) => {
     if (actions.length === 0) return <div className="text-center p-8 text-gray-500">Aucune action à afficher.</div>;
     
     const sortedActions = [...actions].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
@@ -384,7 +410,7 @@ const GanttView = ({ actions, onCardClick }) => {
                         const duration = Math.max(1, getDaysFromStart(action.due_date) - getDaysFromStart(action.start_date));
                         const width = (duration / totalDays) * 100;
                         const config = actionTypeConfig[action.type];
-                        const leader = mockUsers.find(u => u.id === action.leader_id);
+                        const leader = users.find(u => u.id === action.leader_id);
                         const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString()} au ${new Date(action.due_date).toLocaleDateString()}<br>Leader: ${leader?.name || 'N/A'}`;
                         
                         return (
@@ -404,16 +430,19 @@ const GanttView = ({ actions, onCardClick }) => {
     );
 };
 
-// --- COMPOSANT PRINCIPAL (Nouvelle structure) ---
+// --- COMPOSANT PRINCIPAL ---
 export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, onClose }) => {
   const [view, setView] = useState('home');
   const [actions, setActions] = useState<Action[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [editingAction, setEditingAction] = useState<Action | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
+    // Simule le chargement des données
+    setUsers(mockUsers);
     setActions(mockData);
     setLoading(false);
   }, [module]);
@@ -482,10 +511,10 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
             <main className="flex-1 overflow-y-auto min-h-0">
                 {loading ? <div className="text-center p-8">Chargement...</div> : (
                     <>
-                        {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} onCardClick={openActionModal} />}
-                        {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} onCardClick={openActionModal} />}
-                        {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} onCardClick={openActionModal} />}
-                        {view === 'gantt' && <GanttView actions={actions} onCardClick={openActionModal} />}
+                        {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={users} onCardClick={openActionModal} />}
+                        {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={users} onCardClick={openActionModal} />}
+                        {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={users} onCardClick={openActionModal} />}
+                        {view === 'gantt' && <GanttView actions={actions} users={users} onCardClick={openActionModal} />}
                     </>
                 )}
             </main>
@@ -496,6 +525,8 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
           onClose={() => { setIsActionModalOpen(false); setEditingAction(null); }}
           onSave={handleSaveAction}
           action={editingAction}
+          users={users}
+          setUsers={setUsers}
         />
 
         {showHelp && (
