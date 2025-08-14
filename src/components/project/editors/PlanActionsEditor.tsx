@@ -1,33 +1,46 @@
 // PlanActionsEditor.tsx
 
 // --- DÉPENDANCES ---
-// Assurez-vous d'avoir installé cette dépendance dans votre projet :
-// npm install @supabase/supabase-js
-// Assurez-vous également que React, ReactDOM, TailwindCSS et Font Awesome sont configurés.
+// Assurez-vous que React, ReactDOM, TailwindCSS et Font Awesome sont configurés dans votre projet.
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import React, { useState, useEffect, useMemo } from 'react';
+
+// --- TYPES & INTERFACES ---
+type ActionType = 'simple' | 'securisation' | 'poka-yoke';
+type ActionStatus = 'À faire' | 'En cours' | 'Terminé';
+
+interface User {
+    id: string;
+    name: string;
+}
+
+interface Action {
+    id: string;
+    title: string;
+    description?: string;
+    status: ActionStatus;
+    due_date: string;
+    start_date: string;
+    type: ActionType;
+    assignee_id: string;
+    effort: number;
+    gain: number;
+}
 
 // --- CONFIGURATION & DONNÉES ---
-const useMockData = true; // Mettre à false pour utiliser Supabase (après configuration CORS)
-
-// Remplacez par vos propres informations Supabase si vous n'utilisez pas les données mock
-const supabaseUrl = 'https://hvaxjxqisjpbsprwtexo.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh2YXhqeHFpc2pwYnNwcmtldHhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTg2MzM0NDYsImV4cCI6MjAzNDIwOTQ0Nn0.p4x2i9m1DqHD2cFHw4Kuc-0q52vQ3O2a5y--u6B4-S4';
-const supabaseClient = useMockData ? null : createClient(supabaseUrl, supabaseKey);
-
-// Données de démonstration enrichies
-const mockUsers = [
+// Ces données seront probablement passées en props dans votre application réelle.
+const mockUsers: User[] = [
     { id: 'user-1', name: 'Claire Martin' },
     { id: 'user-2', name: 'Jean Dupont' },
     { id: 'user-3', name: 'Pierre Simon' },
 ];
-const mockData = [
+
+const mockData: Action[] = [
   { id: '1', title: 'Optimiser le rangement des outils', status: 'À faire', due_date: '2025-08-25', start_date: '2025-08-10', type: 'simple', assignee_id: 'user-1', effort: 3, gain: 8, description: 'Mise en place du 5S pour les postes 1 et 2.' },
   { id: '2', title: 'Créer un gabarit de perçage', status: 'À faire', due_date: '2025-09-30', start_date: '2025-09-01', type: 'poka-yoke', assignee_id: 'user-3', effort: 8, gain: 9, description: 'Gabarit pour la pièce XA-42 pour éviter les erreurs.' },
-  { id: '3', title: 'Mettre à jour la doc sécurité', status: 'En cours', due_date: '2025-08-14', start_date: '2025-08-05', type: 'securisation', assignee_id: 'user-1', effort: 6, gain: 6, description: 'Revoir la documentation suite au nouvel équipement.' },
+  { id: '3', title: 'Mettre à jour la doc sécurité', status: 'En cours', due_date: new Date(new Date().setDate(new Date().getDate() - 5)).toISOString().split('T')[0], start_date: '2025-08-05', type: 'securisation', assignee_id: 'user-1', effort: 6, gain: 6, description: 'Revoir la documentation suite au nouvel équipement.' },
   { id: '4', title: 'Installer un carter de protection', status: 'Terminé', due_date: '2025-08-10', start_date: '2025-08-01', type: 'securisation', assignee_id: 'user-2', effort: 7, gain: 4, description: 'Carter sur la machine Z, zone de coupe.' },
-  { id: '5', title: 'Former l\'équipe au nouveau process', status: 'En cours', due_date: '2025-09-15', start_date: '2025-09-05', type: 'simple', assignee_id: 'user-2', effort: 9, gain: 2, description: 'Formation sur le nouveau logiciel de gestion.' },
+  { id: '5', title: 'Former l\'équipe au nouveau process', status: 'En cours', due_date: new Date(new Date().setDate(new Date().getDate() + 3)).toISOString().split('T')[0], start_date: '2025-09-05', type: 'simple', assignee_id: 'user-2', effort: 9, gain: 2, description: 'Formation sur le nouveau logiciel de gestion.' },
 ];
 
 // --- CONFIGURATION VISUELLE ---
@@ -39,7 +52,7 @@ const actionTypeConfig = {
 
 // --- COMPOSANTS ---
 
-const Tooltip = ({ content, children }) => (
+const Tooltip = ({ content, children }: { content: string, children: React.ReactNode }) => (
     <div className="relative group">
         {children}
         <div className="absolute bottom-full mb-2 w-max max-w-xs p-2 text-xs text-white bg-slate-700 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10"
@@ -48,8 +61,9 @@ const Tooltip = ({ content, children }) => (
     </div>
 );
 
-const DateIndicator = ({ dueDate }) => {
+const DateIndicator = ({ dueDate }: { dueDate: string }) => {
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     const due = new Date(dueDate);
     const diffDays = (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
     
@@ -68,7 +82,7 @@ const DateIndicator = ({ dueDate }) => {
     );
 };
 
-const ActionCard = ({ action, onDragStart, onClick }) => {
+const ActionCard = ({ action, onDragStart, onClick }: { action: Action, onDragStart: (e: React.DragEvent, action: Action) => void, onClick: (action: Action) => void }) => {
   const config = actionTypeConfig[action.type];
   const user = mockUsers.find(u => u.id === action.assignee_id);
   const tooltipContent = `
@@ -103,15 +117,18 @@ const ActionCard = ({ action, onDragStart, onClick }) => {
   );
 };
 
-const ActionModal = ({ isOpen, onClose, onSave, action }) => {
+const ActionModal = ({ isOpen, onClose, onSave, action }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null }) => {
     if (!isOpen) return null;
     const [formData, setFormData] = useState(action || { title: '', description: '', assignee_id: '', status: 'À faire', type: 'simple', due_date: new Date().toISOString().split('T')[0], start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 });
-    const handleChange = (e) => setFormData(p => ({ ...p, [e.target.name]: e.target.type === 'number' ? parseInt(e.target.value) : e.target.value }));
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value, type } = e.target;
+        setFormData(p => ({ ...p, [name]: (type === 'range' || type === 'number') ? parseInt(value) : value }));
+    };
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl p-6 md:p-8 w-full max-w-2xl">
                 <h2 className="text-2xl font-bold mb-6">{action ? "Modifier l'action" : "Créer une action"}</h2>
-                <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }}>
+                <form onSubmit={(e) => { e.preventDefault(); onSave(formData as Action); }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input name="title" value={formData.title} onChange={handleChange} placeholder="Titre de l'action" className="p-2 border rounded col-span-2" required />
                         <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Description" className="p-2 border rounded col-span-2 h-24"></textarea>
@@ -141,7 +158,7 @@ const ActionModal = ({ isOpen, onClose, onSave, action }) => {
 // --- VUES SPÉCIFIQUES ---
 const HomeView = ({ actions, onCardClick }) => {
     const columns = useMemo(() => {
-        const grouped = { securisation: [], simple: [], 'poka-yoke': [] };
+        const grouped: { [key in ActionType]: Action[] } = { securisation: [], simple: [], 'poka-yoke': [] };
         actions.forEach(action => { if (grouped[action.type]) grouped[action.type].push(action); });
         return grouped;
     }, [actions]);
@@ -162,17 +179,19 @@ const HomeView = ({ actions, onCardClick }) => {
 
 const KanbanByPersonView = ({ actions, setActions, onCardClick }) => {
     const [selectedUser, setSelectedUser] = useState(mockUsers[0].id);
-    const [draggedItem, setDraggedItem] = useState(null);
+    const [draggedItem, setDraggedItem] = useState<Action | null>(null);
     
     const filteredActions = useMemo(() => actions.filter(a => a.assignee_id === selectedUser), [actions, selectedUser]);
     const columns = useMemo(() => {
-        const grouped = { 'À faire': [], 'En cours': [], 'Terminé': [] };
+        const grouped: { [key in ActionStatus]: Action[] } = { 'À faire': [], 'En cours': [], 'Terminé': [] };
         filteredActions.forEach(action => { if (grouped[action.status]) grouped[action.status].push(action); });
         return grouped;
     }, [filteredActions]);
 
-    const handleDrop = (e, targetStatus) => {
-        e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+    const handleDrop = (e: React.DragEvent, targetStatus: ActionStatus) => {
+        e.preventDefault(); 
+        const targetColumn = e.currentTarget as HTMLElement;
+        targetColumn.classList.remove('drag-over');
         if (!draggedItem || draggedItem.status === targetStatus) return;
         const updatedActions = actions.map(act => act.id === draggedItem.id ? { ...act, status: targetStatus } : act);
         setActions(updatedActions, { ...draggedItem, status: targetStatus });
@@ -187,7 +206,7 @@ const KanbanByPersonView = ({ actions, setActions, onCardClick }) => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6" onDragEnd={() => setDraggedItem(null)}>
                 {Object.entries(columns).map(([status, items]) => (
-                    <div key={status} className="kanban-column bg-gray-200 rounded-lg p-4" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)} onDragEnter={(e) => e.currentTarget.classList.add('drag-over')} onDragLeave={(e) => e.currentTarget.classList.remove('drag-over')}>
+                    <div key={status} className="kanban-column bg-gray-200 rounded-lg p-4" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status as ActionStatus)} onDragEnter={(e) => e.currentTarget.classList.add('drag-over')} onDragLeave={(e) => e.currentTarget.classList.remove('drag-over')}>
                         <h2 className="font-bold text-gray-700 mb-4 px-1">{status} <span className="text-sm font-normal text-gray-500">{items.length}</span></h2>
                         <div>{items.map(item => <ActionCard key={item.id} action={item} onDragStart={(e, i) => setDraggedItem(i)} onClick={onCardClick} />)}</div>
                     </div>
@@ -248,7 +267,6 @@ const GanttView = ({ actions, onCardClick }) => {
         <div className="bg-white p-4 rounded-lg shadow-md overflow-x-auto">
             <h2 className="text-xl font-bold mb-4">Chronologie Gantt</h2>
             <div className="relative" style={{ minWidth: '800px' }}>
-                {/* Today Line */}
                 {todayPosition > 0 && todayPosition < 100 &&
                     <div className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-10" style={{ left: `${todayPosition}%` }}>
                         <span className="absolute -top-5 -translate-x-1/2 text-xs bg-red-500 text-white px-1 rounded">Auj.</span>
@@ -256,7 +274,7 @@ const GanttView = ({ actions, onCardClick }) => {
                 }
                 {sortedActions.map((action, index) => {
                     const left = (getDaysFromStart(action.start_date) / totalDays) * 100;
-                    const width = (getDaysFromStart(action.due_date) - getDaysFromStart(action.start_date)) / totalDays * 100;
+                    const width = Math.max(0.5, (getDaysFromStart(action.due_date) - getDaysFromStart(action.start_date)) / totalDays * 100);
                     const config = actionTypeConfig[action.type];
                     const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString()} au ${new Date(action.due_date).toLocaleDateString()}<br>Responsable: ${mockUsers.find(u => u.id === action.assignee_id)?.name || 'N/A'}`;
                     
@@ -279,29 +297,35 @@ const GanttView = ({ actions, onCardClick }) => {
 // --- COMPOSANT PRINCIPAL DE L'APPLICATION ---
 const PlanActionsEditor = () => {
   const [view, setView] = useState('home');
-  const [actions, setActions] = useState([]);
+  const [actions, setActions] = useState<Action[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAction, setEditingAction] = useState(null);
+  const [editingAction, setEditingAction] = useState<Action | null>(null);
 
   useEffect(() => {
-    setActions(mockData.map(d => ({...d, assignee_name: mockUsers.find(u => u.id === d.assignee_id)?.name })));
+    // Remplacer ceci par votre logique de chargement de données (ex: via props)
+    setActions(mockData);
     setLoading(false);
   }, []);
 
-  const handleSaveAction = (actionData) => {
+  const handleSaveAction = (actionData: Action) => {
       if (actionData.id) {
           setActions(actions.map(a => a.id === actionData.id ? actionData : a));
       } else {
-          setActions([...actions, { ...actionData, id: Date.now().toString() }]);
+          setActions([...actions, { ...actionData, id: Date.now().toString() }]); // ID temporaire
       }
       setIsModalOpen(false); setEditingAction(null);
   };
   
-  const handleSetActions = (updatedActions, changedItem) => setActions(updatedActions);
-  const openModal = (action = null) => { setEditingAction(action); setIsModalOpen(true); };
+  const handleSetActions = (updatedActions: Action[], changedItem: Action) => {
+      // Cette fonction sera appelée par le Kanban après un drag-and-drop
+      setActions(updatedActions);
+      // Ici, vous appelleriez votre fonction de mise à jour globale de l'état
+  };
+  
+  const openModal = (action: Action | null = null) => { setEditingAction(action); setIsModalOpen(true); };
 
-  const TabButton = ({ active, onClick, children, icon }) => (
+  const TabButton = ({ active, onClick, children, icon }: { active: boolean, onClick: () => void, children: React.ReactNode, icon: string }) => (
     <button onClick={onClick} className={`py-2 px-4 rounded-md text-sm font-medium flex items-center gap-2 ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}>
       <i className={`fa-solid ${icon}`}></i> {children}
     </button>
@@ -315,7 +339,7 @@ const PlanActionsEditor = () => {
             <div className="flex items-center gap-2 bg-white p-1 rounded-lg shadow-sm">
                 <TabButton active={view === 'home'} onClick={() => setView('home')} icon="fa-layer-group">Par Type</TabButton>
                 <TabButton active={view === 'kanban'} onClick={() => setView('kanban')} icon="fa-user-group">Par Personne</TabButton>
-                <TabButton active={view ==='matrix'} onClick={() => setView('matrix')} icon="fa-table-cells-large">Matrice</TabButton>
+                <TabButton active={view ==='matrix'} onClick={() => setView('matrix')} icon="fa-table-cells-large">Matrice</Tab-Button>
                 <TabButton active={view === 'gantt'} onClick={() => setView('gantt')} icon="fa-chart-gantt">Gantt</TabButton>
             </div>
             <button onClick={() => openModal()} className="py-2 px-4 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600 flex items-center gap-2">
