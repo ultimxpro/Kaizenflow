@@ -955,11 +955,20 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
     }, [actions, saveActionsToDb]);
 
     const handleUpdateAction = useCallback((actionId: string, updates: Partial<Action>) => {
-        const updatedActions = actions.map(a => 
-            a.id === actionId ? { ...a, ...updates } : a
-        );
-        saveActionsToDb(updatedActions);
-    }, [actions, saveActionsToDb]);
+        setActions(currentActions => {
+            const updatedActions = currentActions.map(action =>
+                action.id === actionId
+                    ? { ...action, ...updates }
+                    : action
+            );
+            
+            // On met à jour la base de données ici, avec la liste fraîchement mise à jour
+            updateA3Module(module.id, { content: { ...module.content, actions: updatedActions } });
+            
+            // On retourne la nouvelle liste pour que React mette à jour l'état
+            return updatedActions;
+        });
+    }, [module.id, module.content, updateA3Module]); // Les dépendances sont stables !
     
     const handleSetActions = useCallback((updatedActions: Action[], changedItem: Action) => {
         saveActionsToDb(updatedActions);
