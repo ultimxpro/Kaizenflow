@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { A3Module, User } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
 import { useAuth } from '../../../contexts/AuthContext';
-import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Crown, Check, Calendar, Tag, Activity } from 'lucide-react';
+import { HelpCircle, X, Layers, User as UserIcon, Table, GanttChartSquare, Plus, Users, Check, Calendar, Tag, Activity } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 type ActionType = 'simple' | 'securisation' | 'poka-yoke';
@@ -19,7 +19,7 @@ interface Action {
     start_date: string;
     type: ActionType;
     assignee_ids: string[];
-    leader_id?: string;
+    leader_id?: string; // On peut laisser cette propriété pour ne pas casser la structure de données
     effort: number;
     gain: number;
 }
@@ -75,26 +75,18 @@ const DateIndicator = ({ dueDate, status }: { dueDate: string, status: ActionSta
     );
 };
 
-const AssigneeAvatars = ({ assignee_ids, leader_id, users }: { assignee_ids: string[], leader_id?: string, users: User[] }) => (
+const AssigneeAvatars = ({ assignee_ids, users }: { assignee_ids: string[], users: User[] }) => (
     <div className="flex items-center -space-x-2">
         {assignee_ids.map(id => {
             const user = users.find(u => u.id === id);
             if (!user) return null;
-            const isLeader = id === leader_id;
             return (
-                <Tooltip key={id} content={`${user.nom}${isLeader ? ' (Leader)' : ''}`}>
-                    <div className="relative">
-                        <img
-                            src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`}
-                            alt={user.nom}
-                            className="w-6 h-6 rounded-full border-2 border-white"
-                        />
-                        {isLeader && (
-                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center border border-white">
-                                <Crown className="w-2.5 h-2.5 text-yellow-800" />
-                            </div>
-                        )}
-                    </div>
+                <Tooltip key={id} content={user.nom}>
+                    <img
+                        src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`}
+                        alt={user.nom}
+                        className="w-6 h-6 rounded-full border-2 border-white"
+                    />
                 </Tooltip>
             );
         })}
@@ -113,7 +105,7 @@ const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, u
             className={`bg-white border border-gray-200 rounded-lg shadow-sm mb-3 border-l-4 ${config.color} p-3 hover:shadow-md hover:border-gray-300 cursor-pointer transition-all`}
         >
             <div className="flex justify-between items-start mb-2">
-                <AssigneeAvatars assignee_ids={action.assignee_ids} leader_id={action.leader_id} users={users} />
+                <AssigneeAvatars assignee_ids={action.assignee_ids} users={users} />
             </div>
             <h3 className="font-bold text-gray-800 text-sm">{action.title}</h3>
             <div className="mt-3">
@@ -191,16 +183,11 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
         setFormData(prev => {
             const currentAssignees = prev.assignee_ids || [];
             const newAssignees = currentAssignees.includes(userId) ? currentAssignees.filter(id => id !== userId) : [...currentAssignees, userId];
+            // La logique du leader est simplifiée
             let newLeaderId = newAssignees.includes(prev.leader_id) ? prev.leader_id : (newAssignees[0] || undefined);
             if(newAssignees.length === 0) newLeaderId = undefined;
             return { ...prev, assignee_ids: newAssignees, leader_id: newLeaderId };
         });
-    };
-
-    const setLeader = (userId: string) => {
-        if((formData.assignee_ids || []).includes(userId)) {
-            setFormData(prev => ({...prev, leader_id: userId}));
-        }
     };
 
     const getQuadrant = (gain: number, effort: number) => {
@@ -227,31 +214,13 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                         <div className="flex flex-wrap gap-4">
                             {projectMembers.map(user => {
                                 const isSelected = (formData.assignee_ids || []).includes(user.id);
-                                const isLeader = formData.leader_id === user.id;
                                 return (
                                     <div key={user.id} className="flex flex-col items-center">
                                         <div
                                             onClick={() => toggleAssignee(user.id)}
                                             className={`p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : 'hover:bg-gray-200'}`}
                                         >
-                                            <div className="relative">
-                                                <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
-                                                {isSelected && (
-                                                    <Tooltip content={isLeader ? "Leader actuel" : "Promouvoir Leader"}>
-                                                        <button type="button" onClick={(e) => { e.stopPropagation(); setLeader(user.id); }} className="absolute -top-1 -right-1">
-                                                            {isLeader ? (
-                                                                <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
-                                                                    <Crown className="w-3 h-3 text-yellow-800" />
-                                                                </div>
-                                                            ) : (
-                                                                <div className="w-5 h-5 bg-white hover:bg-gray-200 rounded-full flex items-center justify-center border-2 border-gray-300">
-                                                                    <Crown className="w-3 h-3 text-gray-400 hover:text-yellow-500" />
-                                                                </div>
-                                                            )}
-                                                        </button>
-                                                    </Tooltip>
-                                                )}
-                                            </div>
+                                            <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
                                         </div>
                                         <span className="text-xs mt-1 font-semibold text-gray-700">{user.nom}</span>
                                     </div>
@@ -489,7 +458,7 @@ const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: 
                         const width = (duration / totalDays) * 100;
                         const config = actionTypeConfig[action.type];
                         const leader = users.find(u => u.id === action.leader_id);
-                        const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString('fr-FR')} au ${new Date(action.due_date).toLocaleDateString('fr-FR')}<br>Leader: ${leader?.nom || 'N/A'}`;
+                        const tooltipContent = `<strong>${action.title}</strong><br>Du ${new Date(action.start_date).toLocaleDateString('fr-FR')} au ${new Date(action.due_date).toLocaleDateString('fr-FR')}<br>Responsable: ${leader?.nom || 'N/A'}`;
 
                         return (
                             <div key={action.id} className="w-full h-10 flex items-center">
