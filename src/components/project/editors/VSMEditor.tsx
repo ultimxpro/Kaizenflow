@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { A3Module } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
-import {
-  HelpCircle, X, Workflow
+import { 
+  HelpCircle, X, Workflow, ZoomIn, ZoomOut, Move
 } from 'lucide-react';
 import { VSMToolbar } from './vsm/VSMToolbar';
 import { VSMCanvas } from './vsm/VSMCanvas';
@@ -36,9 +36,8 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
 
   // Fonctions de manipulation des éléments
   const addElement = (type: VSMElementType) => {
-    const canvasRect = canvasRef.current?.getBoundingClientRect();
-    const centerX = ((canvasRect?.width || window.innerWidth) / 2 - viewState.pan.x) / viewState.zoom;
-    const centerY = ((canvasRect?.height || window.innerHeight) / 2 - viewState.pan.y) / viewState.zoom;
+    const centerX = (window.innerWidth / 2 - viewState.pan.x) / viewState.zoom;
+    const centerY = (window.innerHeight / 2 - viewState.pan.y) / viewState.zoom;
     
     const newElement: VSMElement = {
       id: `el-${Date.now()}`,
@@ -196,8 +195,7 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       
-      if (e.key === 'Escape') onClose();
-      
+      // Delete
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedItemId) {
         e.preventDefault();
         const element = content.elements.find(el => el.id === selectedItemId);
@@ -206,11 +204,13 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
         if (connection) deleteConnection(selectedItemId);
       }
       
+      // Duplicate
       if ((e.ctrlKey || e.metaKey) && e.key === 'd' && selectedItemId) {
         e.preventDefault();
         duplicateElement();
       }
       
+      // Copy/Paste
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedItemId) {
         e.preventDefault();
         const element = content.elements.find(el => el.id === selectedItemId);
@@ -229,10 +229,12 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
         setSelectedItemId(newElement.id);
       }
       
+      // Modes
       if (e.key === 'v') setMode('select');
       if (e.key === 'c') setMode('connect');
       if (e.key === 'h') setMode('pan');
       
+      // Zoom
       if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         resetView();
@@ -255,93 +257,83 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
   const selectedConnection = useMemo(() => content.connections.find(c => c.id === selectedItemId), [content.connections, selectedItemId]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-8 z-50">
-        <div className="bg-white rounded-2xl shadow-xl flex flex-col w-full h-full overflow-hidden">
-            <header className="flex items-center justify-between p-6 border-b bg-white flex-shrink-0">
-                <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
-                        <Workflow className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Éditeur VSM</h1>
-                        <p className="text-xs text-gray-500">{content.global?.title || 'Value Stream Mapping'}</p>
-                    </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                    <button
-                        onClick={() => setShowHelp(true)}
-                        className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
-                        title="Aide"
-                    >
-                        <HelpCircle className="w-5 h-5 text-gray-600" />
-                    </button>
-                    <button
-                        onClick={onClose}
-                        className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
-                        title="Fermer (Echap)"
-                    >
-                        <X className="w-5 h-5 text-gray-600" />
-                    </button>
-                </div>
-            </header>
-            
-            <div className="flex flex-col flex-1 overflow-hidden bg-gray-50">
-                 <div className="flex items-center justify-center p-2 border-b bg-gray-50 flex-shrink-0">
-                    <VSMToolbar 
-                        onAddElement={addElement} 
-                        mode={mode} 
-                        setMode={setMode}
-                        onExport={exportVSM}
-                        onImport={importVSM}
-                        onResetView={resetView}
-                        onZoomToFit={zoomToFit}
-                        zoom={viewState.zoom}
-                        showGrid={showGrid}
-                        setShowGrid={setShowGrid}
-                        showMetrics={showMetrics}
-                        setShowMetrics={setShowMetrics}
-                    />
-                </div>
-                
-                <main className="flex-1 flex overflow-hidden">
-                    <VSMCanvas
-                    ref={canvasRef}
-                    content={content}
-                    viewState={viewState}
-                    setViewState={setViewState}
-                    mode={mode}
-                    selectedItemId={selectedItemId}
-                    setSelectedItemId={setSelectedItemId}
-                    connectingFrom={connectingFrom}
-                    setConnectingFrom={setConnectingFrom}
-                    showGrid={showGrid}
-                    onUpdateElement={updateElement}
-                    onDeleteConnection={deleteConnection}
-                    onAnchorClick={handleAnchorClick}
-                    />
-
-                    <aside className="w-80 bg-white border-l flex flex-col z-10 flex-shrink-0">
-                        <VSMDetailsPanel 
-                            element={selectedElement}
-                            connection={selectedConnection}
-                            onUpdateElement={updateElement}
-                            onUpdateConnection={updateConnection}
-                            onDelete={(id) => {
-                            if (selectedElement) deleteElement(id);
-                            if (selectedConnection) deleteConnection(id);
-                            }}
-                            globalData={content.global}
-                            onUpdateGlobal={(updates) => {
-                            setContent(c => ({ ...c, global: { ...c.global, ...updates } }));
-                            }}
-                            metrics={metrics}
-                            showMetrics={showMetrics}
-                        />
-                    </aside>
-                </main>
-            </div>
-            {showHelp && <VSMHelp onClose={() => setShowHelp(false)} />}
+    <div className="fixed inset-0 bg-gray-900 flex flex-col z-50">
+      {/* Header */}
+      <header className="flex items-center justify-between p-3 border-b bg-white flex-shrink-0 z-20 shadow-md">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
+            <Workflow className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Éditeur VSM Professionnel</h1>
+            <p className="text-xs text-gray-500">Value Stream Mapping - {content.global?.title || 'Sans titre'}</p>
+          </div>
         </div>
+        <div className="flex items-center space-x-2">
+          <VSMToolbar 
+            onAddElement={addElement} 
+            mode={mode} 
+            setMode={setMode}
+            onExport={exportVSM}
+            onImport={importVSM}
+            onResetView={resetView}
+            onZoomToFit={zoomToFit}
+            zoom={viewState.zoom}
+            showGrid={showGrid}
+            setShowGrid={setShowGrid}
+            showMetrics={showMetrics}
+            setShowMetrics={setShowMetrics}
+          />
+          <button onClick={() => setShowHelp(true)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Aide">
+            <HelpCircle className="w-5 h-5 text-gray-600" />
+          </button>
+          <button onClick={onClose} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Fermer">
+            <X className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+      </header>
+      
+      {/* Main Content */}
+      <main className="flex-1 flex overflow-hidden">
+        <VSMCanvas
+          ref={canvasRef}
+          content={content}
+          viewState={viewState}
+          setViewState={setViewState}
+          mode={mode}
+          selectedItemId={selectedItemId}
+          setSelectedItemId={setSelectedItemId}
+          connectingFrom={connectingFrom}
+          setConnectingFrom={setConnectingFrom}
+          showGrid={showGrid}
+          onUpdateElement={updateElement}
+          onDeleteConnection={deleteConnection}
+          onAnchorClick={handleAnchorClick}
+        />
+
+        {/* Right Panel */}
+        <aside className="w-96 bg-white border-l flex flex-col z-10">
+          <VSMDetailsPanel 
+            element={selectedElement}
+            connection={selectedConnection}
+            onUpdateElement={updateElement}
+            onUpdateConnection={updateConnection}
+            onDelete={(id) => {
+              if (selectedElement) deleteElement(id);
+              if (selectedConnection) deleteConnection(id);
+            }}
+            globalData={content.global}
+            onUpdateGlobal={(updates) => {
+              setContent(c => ({ ...c, global: { ...c.global, ...updates } }));
+            }}
+            metrics={metrics}
+            showMetrics={showMetrics}
+          />
+        </aside>
+      </main>
+
+      {/* Help Modal */}
+      {showHelp && <VSMHelp onClose={() => setShowHelp(false)} />}
     </div>
   );
 };
