@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+// src/components/project/editors/PlanActionsEditor.tsx
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { A3Module, User } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -20,8 +22,6 @@ interface Action {
     leader_id?: string;
     effort: number;
     gain: number;
-    project: string;
-    createdBy: string;
 }
 
 // --- PROPS DU COMPOSANT ---
@@ -37,13 +37,6 @@ const actionTypeConfig = {
     'poka-yoke': { name: 'Poka-Yoke', icon: '🧩', color: 'border-yellow-500', textColor: 'text-yellow-600', barBg: 'bg-yellow-500', a3Color: 'bg-yellow-100 text-yellow-800', lightBg: 'bg-yellow-50' },
 };
 
-// --- FONCTION UTILITAIRE ---
-const getQuadrant = (gain: number, effort: number) => {
-    if (gain >= 5 && effort < 5) return { name: "Quick Win 🔥", color: "bg-green-100", textColor: "text-green-800" };
-    if (gain >= 5 && effort >= 5) return { name: "Gros projet 🗓️", color: "bg-blue-100", textColor: "text-blue-800" };
-    if (gain < 5 && effort < 5) return { name: "Tâche de fond 👌", color: "bg-yellow-100", textColor: "text-yellow-800" };
-    return { name: "À éviter 🤔", color: "bg-red-100", textColor: "text-red-800" };
-};
 
 // --- COMPOSANTS UTILITAIRES ---
 const Tooltip = ({ content, children }: { content: string, children: React.ReactNode }) => (
@@ -90,7 +83,7 @@ const AssigneeAvatars = ({ assignee_ids, users }: { assignee_ids: string[], user
             return (
                 <Tooltip key={id} content={user.nom}>
                     <img
-                        src={user.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${user.nom}`}
+                        src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`}
                         alt={user.nom}
                         className="w-6 h-6 rounded-full border-2 border-white"
                     />
@@ -100,8 +93,10 @@ const AssigneeAvatars = ({ assignee_ids, users }: { assignee_ids: string[], user
     </div>
 );
 
+
 const ActionCard = ({ action, users, onDragStart, onClick }: { action: Action, users: User[], onDragStart: (e: React.DragEvent, action: Action) => void, onClick: (action: Action) => void }) => {
     const config = actionTypeConfig[action.type];
+
     return (
         <div
             draggable="true"
@@ -130,100 +125,50 @@ const PDCASection = ({ title, icon, children }: { title: string, icon: React.Rea
 );
 
 // --- FORMULAIRE D'ACTION ---
-const getDateOfISOWeek = (weekString: string): Date => {
-    if (!weekString) return new Date();
-    const [year, week] = weekString.split('-W').map(Number);
-    const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
-    const dayOfWeek = simple.getUTCDay();
-    const isoWeekStart = simple;
-    if (dayOfWeek <= 4) {
-        isoWeekStart.setUTCDate(simple.getUTCDate() - simple.getUTCDay() + 1);
-    } else {
-        isoWeekStart.setUTCDate(simple.getUTCDate() + 8 - simple.getUTCDay());
-    }
-    return isoWeekStart;
-};
-
-const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMembers, currentUser }: {
-    isOpen: boolean,
-    onClose: () => void,
-    onSave: (action: Action) => void,
-    action: Action | null,
-    projectMembers: User[],
-    currentUser: User | null
-}) => {
+const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMembers }: { isOpen: boolean, onClose: () => void, onSave: (action: Action) => void, action: Action | null, projectMembers: User[]}) => {
     if (!isOpen) return null;
 
     const [formData, setFormData] = useState<Partial<Action>>({});
-    const [duration, setDuration] = useState(7);
+    const [duration, setDuration] = useState(1);
     const [durationUnit, setDurationUnit] = useState<'days' | 'weeks' | 'months'>('days');
-    const [weekValue, setWeekValue] = useState('');
-    const [monthValue, setMonthValue] = useState('');
 
     useEffect(() => {
-        const initialStartDate = action?.start_date || new Date().toISOString().split('T')[0];
-        const initialData = action || {
-            title: '', description: '', assignee_ids: [], status: 'À faire',
-            type: 'simple', due_date: '', start_date: initialStartDate,
-            effort: 5, gain: 5, createdBy: currentUser?.id, project: ''
-        };
+        const initialData = action || { title: '', description: '', assignee_ids: [], status: 'À faire', type: 'simple', due_date: '', start_date: new Date().toISOString().split('T')[0], effort: 5, gain: 5 };
         setFormData(initialData);
 
-        if (action && action.start_date && action.due_date) {
+        if(action && action.start_date && action.due_date) {
             const start = new Date(action.start_date);
             const end = new Date(action.due_date);
-            const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
-            if (diffDays > 0 && diffDays % 30 === 0 && diffDays / 30 > 0) {
+            if (diffDays > 0 && diffDays % 30 === 0) {
                 setDuration(diffDays / 30);
                 setDurationUnit('months');
-            } else if (diffDays > 0 && diffDays % 7 === 0 && diffDays / 7 > 0) {
+            } else if (diffDays > 0 && diffDays % 7 === 0) {
                 setDuration(diffDays / 7);
                 setDurationUnit('weeks');
             } else {
                 setDuration(Math.max(1, diffDays));
                 setDurationUnit('days');
             }
-        } else {
-            setDuration(7);
-            setDurationUnit('days');
         }
-    }, [action, currentUser]);
+    }, [action]);
 
     useEffect(() => {
         if (!formData.start_date) return;
-        const startDate = new Date(formData.start_date + 'T00:00:00');
+        const startDate = new Date(formData.start_date);
         let endDate = new Date(startDate);
         const newDuration = Math.max(1, duration);
 
         if (durationUnit === 'days') {
-            endDate.setDate(startDate.getDate() + newDuration - 1);
+            endDate.setDate(startDate.getDate() + newDuration);
         } else if (durationUnit === 'weeks') {
-            endDate.setDate(startDate.getDate() + newDuration * 7 - 1);
+            endDate.setDate(startDate.getDate() + newDuration * 7);
         } else if (durationUnit === 'months') {
             endDate.setMonth(startDate.getMonth() + newDuration);
-            endDate.setDate(endDate.getDate() - 1);
         }
         setFormData(prev => ({ ...prev, due_date: endDate.toISOString().split('T')[0] }));
     }, [formData.start_date, duration, durationUnit]);
-
-    const handleDateInputChange = (value: string) => {
-        let startDateStr = '';
-        if (durationUnit === 'days') {
-            startDateStr = value;
-        } else if (durationUnit === 'weeks') {
-            setWeekValue(value);
-            if (value) {
-                startDateStr = getDateOfISOWeek(value).toISOString().split('T')[0];
-            }
-        } else if (durationUnit === 'months') {
-            setMonthValue(value);
-            if (value) {
-                startDateStr = `${value}-01`;
-            }
-        }
-        setFormData(p => ({ ...p, start_date: startDateStr }));
-    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -238,12 +183,19 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
         setFormData(prev => {
             const currentAssignees = prev.assignee_ids || [];
             const newAssignees = currentAssignees.includes(userId) ? currentAssignees.filter(id => id !== userId) : [...currentAssignees, userId];
+            // La logique du leader est simplifiée
             let newLeaderId = newAssignees.includes(prev.leader_id) ? prev.leader_id : (newAssignees[0] || undefined);
             if(newAssignees.length === 0) newLeaderId = undefined;
             return { ...prev, assignee_ids: newAssignees, leader_id: newLeaderId };
         });
     };
 
+    const getQuadrant = (gain: number, effort: number) => {
+        if (gain >= 5 && effort < 5) return { name: "Quick Win 🔥", color: "bg-green-200" };
+        if (gain >= 5 && effort >= 5) return { name: "Gros projet 🗓️", color: "bg-blue-200" };
+        if (gain < 5 && effort < 5) return { name: "Tâche de fond 👌", color: "bg-yellow-200" };
+        return { name: "À éviter 🤔", color: "bg-red-200" };
+    };
     const currentQuadrant = getQuadrant(formData.gain || 5, formData.effort || 5);
 
     return (
@@ -264,8 +216,11 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                 const isSelected = (formData.assignee_ids || []).includes(user.id);
                                 return (
                                     <div key={user.id} className="flex flex-col items-center">
-                                        <div onClick={() => toggleAssignee(user.id)} className={`p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : 'hover:bg-gray-200'}`}>
-                                            <img src={user.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${user.nom}`} alt={user.nom} className="w-14 h-14 rounded-full" />
+                                        <div
+                                            onClick={() => toggleAssignee(user.id)}
+                                            className={`p-1 rounded-full cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : 'hover:bg-gray-200'}`}
+                                        >
+                                            <img src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.id}`} alt={user.nom} className="w-14 h-14 rounded-full" />
                                         </div>
                                         <span className="text-xs mt-1 font-semibold text-gray-700">{user.nom}</span>
                                     </div>
@@ -297,21 +252,8 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                 <label className="text-sm font-semibold text-gray-600 flex items-center mb-2"><Calendar size={14} className="mr-2"/> Échéance</label>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs text-gray-500">
-                                            {durationUnit === 'days' && "Date de début"}
-                                            {durationUnit === 'weeks' && "Semaine de début"}
-                                            {durationUnit === 'months' && "Mois de début"}
-                                        </label>
-
-                                        {durationUnit === 'days' && (
-                                            <input type="date" value={formData.start_date || ''} onChange={(e) => handleDateInputChange(e.target.value)} className="p-2 border bg-white border-gray-300 rounded w-full" />
-                                        )}
-                                        {durationUnit === 'weeks' && (
-                                            <input type="week" value={weekValue} onChange={(e) => handleDateInputChange(e.target.value)} className="p-2 border bg-white border-gray-300 rounded w-full" />
-                                        )}
-                                        {durationUnit === 'months' && (
-                                            <input type="month" value={monthValue} onChange={(e) => handleDateInputChange(e.target.value)} className="p-2 border bg-white border-gray-300 rounded w-full" />
-                                        )}
+                                        <label className="text-xs text-gray-500">Date de début</label>
+                                        <input type="date" name="start_date" value={formData.start_date || ''} onChange={handleChange} className="p-2 border bg-white border-gray-300 rounded w-full" />
                                     </div>
                                     <div>
                                         <label className="text-xs text-gray-500">Durée</label>
@@ -325,7 +267,7 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                                         </div>
                                     </div>
                                 </div>
-                                {formData.due_date && formData.start_date && <p className="text-xs text-gray-500 mt-2">Période : <span className="font-semibold">{new Date(formData.start_date + 'T00:00:00').toLocaleDateString('fr-FR')} au {new Date(formData.due_date + 'T00:00:00').toLocaleDateString('fr-FR')}</span></p>}
+                                {formData.due_date && <p className="text-xs text-gray-500 mt-2">Date de fin prévisionnelle : <span className="font-semibold">{new Date(formData.due_date).toLocaleDateString('fr-FR')}</span></p>}
                             </div>
                         </div>
                     </PDCASection>
@@ -333,8 +275,8 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
                     <PDCASection title="Priorisation" icon={<GanttChartSquare size={20} />}>
                         <div className="grid grid-cols-2 gap-6 items-center">
                             <div>
-                                <div><label>Effort (Complexité): {formData.effort || 5}</label><input type="range" name="effort" min="1" max="10" value={formData.effort || 5} onChange={e => handleRangeChange('effort', e.target.value)} className="w-full" /></div>
-                                <div className="mt-2"><label>Gain (Impact): {formData.gain || 5}</label><input type="range" name="gain" min="1" max="10" value={formData.gain || 5} onChange={e => handleRangeChange('gain', e.target.value)} className="w-full" /></div>
+                                <div><label>Effort (Complexité): {formData.effort}</label><input type="range" name="effort" min="1" max="10" value={formData.effort || 5} onChange={e => handleRangeChange('effort', e.target.value)} className="w-full" /></div>
+                                <div className="mt-2"><label>Gain (Impact): {formData.gain}</label><input type="range" name="gain" min="1" max="10" value={formData.gain || 5} onChange={e => handleRangeChange('gain', e.target.value)} className="w-full" /></div>
                             </div>
                             <div className="text-center">
                                 <p className="text-sm text-gray-500">Position dans la matrice :</p>
@@ -352,6 +294,7 @@ const ActionModal = React.memo(({ isOpen, onClose, onSave, action, projectMember
         </div>
     );
 });
+
 
 // --- VUES SPÉCIFIQUES ---
 const HomeView = ({ actions, setActions, users, onCardClick }: { actions: Action[], setActions: (actions: Action[], changedItem: Action) => void, users: User[], onCardClick: (action: Action) => void }) => {
@@ -414,32 +357,34 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
 
     return (
         <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-blue-50">
+            {/* Header avec sélecteur utilisateur amélioré */}
             <div className="mb-6 flex-shrink-0 flex justify-center">
                 <div className="bg-white p-4 rounded-xl shadow-lg border border-blue-100 flex items-center gap-4">
                     <div className="flex items-center gap-3">
                         {selectedUserData && (
-                            <img
-                                src={selectedUserData.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${selectedUserData.nom}`}
-                                alt={selectedUserData.nom}
+                            <img 
+                                src={selectedUserData.avatarUrl || `https://i.pravatar.cc/150?u=${selectedUserData.id}`} 
+                                alt={selectedUserData.nom} 
                                 className="w-10 h-10 rounded-full border-2 border-blue-200"
                             />
                         )}
                         <div>
                             <label htmlFor="user-select" className="font-semibold text-gray-700 block">Kanban personnel</label>
-                            <p className="text-xs text-gray-500">Sélectionnez un membre</p>
+                            <p className="text-xs text-gray-500">Sélectionnez un membre de l'équipe</p>
                         </div>
                     </div>
-                    <select
-                        id="user-select"
-                        onChange={(e) => setSelectedUser(e.target.value)}
-                        value={selectedUser}
+                    <select 
+                        id="user-select" 
+                        onChange={(e) => setSelectedUser(e.target.value)} 
+                        value={selectedUser} 
                         className="p-3 border bg-white border-gray-300 rounded-lg shadow-sm text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-48"
                     >
                         {users.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
                     </select>
                 </div>
             </div>
-
+            
+            {/* Statistiques rapides */}
             <div className="mb-4 flex-shrink-0 flex justify-center gap-4">
                 <div className="bg-orange-100 border border-orange-200 rounded-lg px-4 py-2 flex items-center gap-2">
                     <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
@@ -451,53 +396,100 @@ const KanbanByPersonView = ({ actions, setActions, users, onCardClick }: { actio
                 </div>
             </div>
 
+            {/* Colonnes Kanban */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0" onDragEnd={() => setDraggedItem(null)}>
                 {(Object.entries(columns) as [ActionStatus, Action[]][]).map(([status, items]) => (
-                    <div
-                        key={status}
-                        className={`flex flex-col rounded-xl transition-all duration-300 h-full overflow-hidden shadow-lg ${status === 'À faire' ? 'bg-gradient-to-b from-orange-50 to-orange-100 border-2 border-orange-200' : 'bg-gradient-to-b from-green-50 to-green-100 border-2 border-green-200'}`}
-                        onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)}
+                    <div 
+                        key={status} 
+                        className={`flex flex-col rounded-xl transition-all duration-300 h-full overflow-hidden shadow-lg ${
+                            status === 'À faire' 
+                                ? 'bg-gradient-to-b from-orange-50 to-orange-100 border-2 border-orange-200' 
+                                : 'bg-gradient-to-b from-green-50 to-green-100 border-2 border-green-200'
+                        }`}
+                         onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, status)}
                         onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('bg-blue-50', 'ring-2', 'ring-blue-400', 'scale-105')}
                         onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('bg-blue-50', 'ring-2', 'ring-blue-400', 'scale-105')}
                     >
-                        <div className={`p-4 border-b-2 flex-shrink-0 ${status === 'À faire' ? 'border-orange-300 bg-orange-200' : 'border-green-300 bg-green-200'}`}>
+                        {/* Header de colonne */}
+                        <div className={`p-4 border-b-2 flex-shrink-0 ${
+                            status === 'À faire' 
+                                ? 'border-orange-300 bg-orange-200' 
+                                : 'border-green-300 bg-green-200'
+                        }`}>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${status === 'À faire' ? 'bg-orange-500' : 'bg-green-500'}`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                        status === 'À faire' ? 'bg-orange-500' : 'bg-green-500'
+                                    }`}>
                                         {status === 'À faire' ? '⏳' : '✅'}
                                     </div>
-                                    <h2 className={`font-bold text-lg ${status === 'À faire' ? 'text-orange-800' : 'text-green-800'}`}>{status}</h2>
+                                    <h2 className={`font-bold text-lg ${
+                                        status === 'À faire' ? 'text-orange-800' : 'text-green-800'
+                                    }`}>
+                                        {status}
+                                    </h2>
                                 </div>
-                                <span className={`text-sm font-bold px-3 py-1 rounded-full ${status === 'À faire' ? 'bg-orange-300 text-orange-800' : 'bg-green-300 text-green-800'}`}>{items.length}</span>
+                                <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                                    status === 'À faire' 
+                                        ? 'bg-orange-300 text-orange-800' 
+                                        : 'bg-green-300 text-green-800'
+                                }`}>
+                                    {items.length}
+                                </span>
                             </div>
                         </div>
-
+                        
+                        {/* Zone de contenu avec défilement */}
                         <div className="flex-1 overflow-y-auto p-4 min-h-0">
                             {items.length === 0 ? (
                                 <div className="text-center py-8">
-                                    <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${status === 'À faire' ? 'bg-orange-200' : 'bg-green-200'}`}>
+                                    <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
+                                        status === 'À faire' ? 'bg-orange-200' : 'bg-green-200'
+                                    }`}>
                                         {status === 'À faire' ? '📝' : '🎉'}
                                     </div>
-                                    <p className={`text-sm font-medium ${status === 'À faire' ? 'text-orange-600' : 'text-green-600'}`}>{status === 'À faire' ? 'Aucune tâche en attente' : 'Aucune tâche terminée'}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{status === 'À faire' ? 'Les nouvelles tâches apparaîtront ici' : 'Glissez les tâches terminées ici'}</p>
+                                    <p className={`text-sm font-medium ${
+                                        status === 'À faire' ? 'text-orange-600' : 'text-green-600'
+                                    }`}>
+                                        {status === 'À faire' ? 'Aucune tâche en attente' : 'Aucune tâche terminée'}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {status === 'À faire' ? 'Les nouvelles tâches apparaîtront ici' : 'Glissez les tâches terminées ici'}
+                                    </p>
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {items.map(item => (<ActionCard key={item.id} action={item} users={users} onDragStart={(e, action) => setDraggedItem(action)} onClick={onCardClick} />))}
+                                    {items.map(item => (
+                                        <ActionCard 
+                                            key={item.id} 
+                                            action={item} 
+                                            users={users} 
+                                            onDragStart={(e, action) => setDraggedItem(action)} 
+                                            onClick={onCardClick} 
+                                        />
+                                    ))}
                                 </div>
                             )}
                         </div>
                     </div>
                 ))}
             </div>
-
+            
+            {/* Footer avec progression */}
             <div className="mt-4 flex-shrink-0 bg-white rounded-xl p-4 shadow-lg border border-gray-200">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700">Progression de {selectedUserData?.nom}</span>
-                    <span className="text-sm font-bold text-gray-900">{filteredActions.length > 0 ? Math.round((columns['Fait'].length / filteredActions.length) * 100) : 0}%</span>
+                    <span className="text-sm font-bold text-gray-900">
+                        {filteredActions.length > 0 ? Math.round((columns['Fait'].length / filteredActions.length) * 100) : 0}%
+                    </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-500" style={{ width: `${filteredActions.length > 0 ? (columns['Fait'].length / filteredActions.length) * 100 : 0}%` }}></div>
+                    <div 
+                        className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-500"
+                        style={{ 
+                            width: `${filteredActions.length > 0 ? (columns['Fait'].length / filteredActions.length) * 100 : 0}%` 
+                        }}
+                    ></div>
                 </div>
             </div>
         </div>
@@ -521,12 +513,21 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
         e.preventDefault();
         (e.currentTarget as HTMLDivElement).classList.remove('ring-2', 'ring-blue-400');
         if(!draggedItem) return;
-        const newValues = { 'quick-wins': { gain: 8, effort: 3 }, 'major-projects': { gain: 8, effort: 8 }, 'fill-ins': { gain: 3, effort: 3 }, 'thankless-tasks': { gain: 3, effort: 8 } }[quadrant] || { gain: 5, effort: 5 };
+        const newValues = {
+            'quick-wins': { gain: 8, effort: 3 },
+            'major-projects': { gain: 8, effort: 8 },
+            'fill-ins': { gain: 3, effort: 3 },
+            'thankless-tasks': { gain: 3, effort: 8 }
+        }[quadrant] || { gain: 5, effort: 5 };
         setActions(actions.map(a => a.id === draggedItem.id ? {...a, ...newValues} : a), {...draggedItem, ...newValues});
     };
 
     const Quadrant = ({ title, emoji, items, bgColor, quadrantName }: { title: string, emoji: string, items: Action[], bgColor: string, quadrantName: string }) => (
-        <div className={`rounded-lg p-2 flex flex-col ${bgColor}`} onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, quadrantName)} onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('ring-2', 'ring-blue-400')} onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('ring-2', 'ring-blue-400')}>
+        <div className={`rounded-lg p-2 flex flex-col ${bgColor}`}
+             onDragOver={(e) => e.preventDefault()}
+             onDrop={(e) => handleDrop(e, quadrantName)}
+             onDragEnter={(e) => (e.currentTarget as HTMLDivElement).classList.add('ring-2', 'ring-blue-400')}
+             onDragLeave={(e) => (e.currentTarget as HTMLDivElement).classList.remove('ring-2', 'ring-blue-400')}>
             <h3 className="font-bold text-center mb-2 text-slate-800 text-sm">{title} <span className="text-lg">{emoji}</span></h3>
             <div className="matrix-quadrant bg-white bg-opacity-40 rounded p-2 overflow-y-auto flex-grow min-h-0">
                 {items.map(action => <ActionCard key={action.id} action={action} users={users} onDragStart={(e, act) => setDraggedItem(act)} onClick={onCardClick} />)}
@@ -547,256 +548,503 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
     );
 };
 
-const TabButton = ({ active, onClick, children, icon }: { active: boolean, onClick: () => void, children: React.ReactNode, icon: React.ReactNode }) => (
-    <button onClick={onClick} className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${active ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
-        {icon} {children}
-    </button>
-);
-
-const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, ganttScale, setGanttScale }: {
-    actions: Action[],
-    users: User[],
-    onUpdateAction: (id: string, updates: Partial<Action>) => void,
-    saveActions: (actions: Action[]) => void,
-    onCardClick: (action: Action) => void,
-    ganttScale: 'day' | 'week' | 'month',
-    setGanttScale: (scale: 'day' | 'week' | 'month') => void,
-}) => {
-    const ganttContainerRef = useRef<HTMLDivElement>(null);
-
+const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: User[], onCardClick: (action: Action) => void }) => {
+    const [scale, setScale] = useState<'day' | 'week' | 'month'>('day');
     const [dragState, setDragState] = useState<{
-        actionId: string;
-        mode: 'move' | 'resize-right' | 'resize-left';
+        actionId: string | null;
+        mode: 'move' | 'resize-start' | 'resize-end' | null;
         startX: number;
-        originalStartDate: Date;
-        originalEndDate: Date;
-    } | null>(null);
-
-    const validActions = useMemo(() => actions
-        .filter(a => a.start_date && a.due_date && !isNaN(new Date(a.start_date).getTime()) && !isNaN(new Date(a.due_date).getTime()))
-        .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()),
-        [actions]
-    );
-
-    const { ganttStartDate, ganttEndDate } = useMemo(() => {
-        if (validActions.length === 0) {
-            const today = new Date();
-            const start = new Date(today);
-            start.setDate(today.getDate() - 30);
-            const end = new Date(today);
-            end.setDate(today.getDate() + 60);
-            return { ganttStartDate: start, ganttEndDate: end };
-        }
-        const allDates = validActions.flatMap(a => [new Date(a.start_date), new Date(a.due_date)]);
-        const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-        const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
-        minDate.setDate(minDate.getDate() - 7);
-        maxDate.setDate(maxDate.getDate() + 14);
-        return { ganttStartDate: minDate, ganttEndDate: maxDate };
-    }, [validActions]);
-
-    const getScaleConfig = useCallback(() => {
-        switch(ganttScale) {
-            case 'week': return { step: 7, columnWidth: 80 };
-            case 'month': return { step: 30, columnWidth: 150 };
-            case 'day':
-            default: return { step: 1, columnWidth: 50 };
-        }
-    }, [ganttScale]);
-
-    const { columnWidth } = getScaleConfig();
-    const dayWidth = columnWidth / getScaleConfig().step;
-
-    const timelineColumns = useMemo(() => {
-        if (!ganttStartDate || !ganttEndDate) return [];
-        const columns = [];
-        let current = new Date(ganttStartDate);
-        
-        if (ganttScale === 'week') {
-            const day = current.getDay();
-            current.setDate(current.getDate() - (day === 0 ? 6 : day - 1));
-        } else if (ganttScale === 'month') {
-            current.setDate(1);
-        }
-
-        while (current <= ganttEndDate) {
-            let label = '';
-            const nextDate = new Date(current);
-            if (ganttScale === 'day') {
-                label = current.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-                nextDate.setDate(current.getDate() + 1);
-            } else if (ganttScale === 'week') {
-                const weekNum = Math.ceil((((current.getTime() - new Date(current.getFullYear(), 0, 1).getTime()) / 86400000) + 1) / 7);
-                label = `S${weekNum}`;
-                nextDate.setDate(current.getDate() + 7);
-            } else {
-                label = current.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-                nextDate.setMonth(current.getMonth() + 1);
-            }
-            columns.push({ date: new Date(current), label });
-            current = nextDate;
-        }
-        return columns;
-    }, [ganttStartDate, ganttEndDate, ganttScale]);
+        originalStart: Date;
+        originalEnd: Date;
+    }>({
+        actionId: null,
+        mode: null,
+        startX: 0,
+        originalStart: new Date(),
+        originalEnd: new Date()
+    });
     
-    const totalWidth = timelineColumns.length * columnWidth;
+    if (actions.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
+                <GanttChartSquare className="w-16 h-16 mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold mb-2">Aucune action planifiée</h3>
+                <p className="text-sm">Créez des actions avec des dates pour voir le diagramme de Gantt</p>
+            </div>
+        );
+    }
 
-    const getPositionFromDate = useCallback((date: Date) => {
-        const diffMs = date.getTime() - ganttStartDate.getTime();
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
-        return diffDays * dayWidth;
-    }, [ganttStartDate, dayWidth]);
+    const validActions = actions.filter(a => 
+        a.start_date && a.due_date && 
+        !isNaN(new Date(a.start_date).getTime()) && 
+        !isNaN(new Date(a.due_date).getTime())
+    ).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    
+    if (validActions.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
+                <Calendar className="w-16 h-16 mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold mb-2">Dates manquantes</h3>
+                <p className="text-sm">Ajoutez des dates de début et de fin aux actions pour voir le Gantt</p>
+            </div>
+        );
+    }
 
-    const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right' | 'resize-left') => {
+    // Calcul des dates limites
+    const minTime = Math.min(...validActions.map(a => new Date(a.start_date).getTime()));
+    const maxTime = Math.max(...validActions.map(a => new Date(a.due_date).getTime()));
+    
+    const startDate = new Date(minTime);
+    const endDate = new Date(maxTime);
+    
+    // Ajustement des dates selon l'échelle
+    if (scale === 'week') {
+        startDate.setDate(startDate.getDate() - startDate.getDay()); // Début de semaine
+        endDate.setDate(endDate.getDate() + (6 - endDate.getDay()) + 7); // Fin de semaine + 1 semaine
+    } else if (scale === 'month') {
+        startDate.setDate(1); // Début du mois
+        endDate.setMonth(endDate.getMonth() + 1, 1); // Début du mois suivant
+    } else {
+        startDate.setDate(startDate.getDate() - 3); // 3 jours avant
+        endDate.setDate(endDate.getDate() + 3); // 3 jours après
+    }
+
+    // Fonction pour obtenir le numéro de semaine française (ISO 8601)
+    const getWeekNumber = (date: Date): number => {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    };
+
+    // Fonction pour obtenir le lundi d'une semaine donnée
+    const getMondayOfWeek = (year: number, week: number): Date => {
+        const jan4 = new Date(year, 0, 4);
+        const jan4Day = jan4.getDay() || 7;
+        const mondayOfWeek1 = new Date(jan4.getTime() - (jan4Day - 1) * 86400000);
+        return new Date(mondayOfWeek1.getTime() + (week - 1) * 7 * 86400000);
+    };
+
+    // Fonction pour calculer le numéro de semaine ISO 8601
+    const getISOWeekNumber = (date: Date) => {
+        const target = new Date(date.valueOf());
+        const dayNumber = (date.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNumber + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) {
+            target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+        }
+        return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+    };
+
+    // Fonction pour calculer l'année ISO de la semaine
+    const getISOWeekYear = (date: Date) => {
+        const target = new Date(date.valueOf());
+        const dayNumber = (date.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNumber + 3);
+        return target.getFullYear();
+    };
+
+    // Calcul des unités et largeur
+    const getTimeUnits = () => {
+        const units = [];
+        let current = new Date(startDate);
+        
+        while (current <= endDate) {
+            if (scale === 'day') {
+                // Format: "Lun 15 Jan 2024"
+                const dayName = current.toLocaleDateString('fr-FR', { weekday: 'short' });
+                const day = current.getDate();
+                const month = current.toLocaleDateString('fr-FR', { month: 'short' });
+                const year = current.getFullYear();
+                units.push({
+                    date: new Date(current),
+                    label: `${dayName} ${day} ${month} ${year}`
+                });
+                current.setDate(current.getDate() + 1);
+            } else if (scale === 'week') {
+                // Calcul du numéro de semaine ISO 8601
+                const weekNumber = getISOWeekNumber(current);
+                const year = getISOWeekYear(current);
+                units.push({
+                    date: new Date(current),
+                    label: `S${weekNumber} ${year}`
+                });
+                // Aller au lundi suivant
+                const daysToAdd = 7 - (current.getDay() === 0 ? 7 : current.getDay()) + 1;
+                current.setDate(current.getDate() + daysToAdd);
+            } else if (scale === 'month') {
+                const month = current.toLocaleDateString('fr-FR', { month: 'long' });
+                const year = current.getFullYear();
+                units.push({
+                    date: new Date(current),
+                    label: `${month} ${year}`
+                });
+                current.setMonth(current.getMonth() + 1);
+            }
+        }
+        return units;
+    };
+
+    const timeUnits = getTimeUnits();
+    const unitWidth = scale === 'day' ? 40 : scale === 'week' ? 80 : 120;
+    const totalWidth = timeUnits.length * unitWidth;
+
+    const getPositionAndWidth = (action: Action) => {
+        const actionStart = new Date(action.start_date);
+        const actionEnd = new Date(action.due_date);
+        
+        // Calcul de la position de début
+        let startPos = 0;
+        let width = 0;
+        
+        if (scale === 'day') {
+            // Calcul en jours
+            const startDiff = Math.floor((actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const endDiff = Math.ceil((actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            startPos = (startDiff / timeUnits.length) * 100;
+            width = Math.max(((endDiff - startDiff) / timeUnits.length) * 100, 1);
+        } else if (scale === 'week') {
+            // Calcul en semaines
+            const startWeek = Math.floor((actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            const endWeek = Math.ceil((actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            startPos = (startWeek / timeUnits.length) * 100;
+            width = Math.max(((endWeek - startWeek) / timeUnits.length) * 100, 1);
+        } else if (scale === 'month') {
+            // Calcul en mois
+            const startMonth = (actionStart.getFullYear() - startDate.getFullYear()) * 12 + (actionStart.getMonth() - startDate.getMonth());
+            const endMonth = (actionEnd.getFullYear() - startDate.getFullYear()) * 12 + (actionEnd.getMonth() - startDate.getMonth());
+            startPos = (startMonth / timeUnits.length) * 100;
+            width = Math.max(((endMonth - startMonth + 1) / timeUnits.length) * 100, 1);
+        }
+        
+        return { left: `${startPos}%`, width: `${width}%` };
+    };
+
+    const formatTimeUnit = (date: Date) => {
+        if (scale === 'day') {
+            return {
+                main: date.getDate().toString(),
+                sub: date.getDate() === 1 ? date.toLocaleDateString('fr-FR', { month: 'short' }) : ''
+            };
+        } else if (scale === 'week') {
+            const weekEnd = new Date(date);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            return {
+                main: `S${Math.ceil(date.getDate() / 7)}`,
+                sub: date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
+            };
+        } else {
+            return {
+                main: date.toLocaleDateString('fr-FR', { month: 'short' }),
+                sub: date.getFullYear().toString()
+            };
+        }
+    };
+
+    // Fonctions de drag & drop
+    const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-start' | 'resize-end') => {
         e.preventDefault();
-        e.stopPropagation();
-        const action = validActions.find(a => a.id === actionId);
+        const action = actions.find(a => a.id === actionId);
         if (!action) return;
 
         setDragState({
             actionId,
             mode,
             startX: e.clientX,
-            originalStartDate: new Date(action.start_date + 'T00:00:00'),
-            originalEndDate: new Date(action.due_date + 'T00:00:00'),
+            originalStart: new Date(action.start_date),
+            originalEnd: new Date(action.due_date)
         });
     };
 
-    useEffect(() => {
-        if (!dragState) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            const deltaX = e.clientX - dragState.startX;
-            const deltaDays = Math.round(deltaX / dayWidth);
-
-            let newStartDate = new Date(dragState.originalStartDate);
-            let newEndDate = new Date(dragState.originalEndDate);
-
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!dragState.actionId || !dragState.mode) return;
+        e.preventDefault();
+        
+        const deltaX = e.clientX - dragState.startX;
+        const timelineContainer = document.querySelector('.timeline-container');
+        if (!timelineContainer) return;
+        
+        const containerWidth = timelineContainer.clientWidth;
+        const deltaPercent = (deltaX / containerWidth) * 100;
+        
+        const action = actions.find(a => a.id === dragState.actionId);
+        if (!action) return;
+        
+        const currentStart = new Date(action.start_date);
+        const currentEnd = new Date(action.due_date);
+        
+        let newStartDate = new Date(currentStart);
+        let newEndDate = new Date(currentEnd);
+        
+        // Calcul du changement selon l'échelle
+        if (scale === 'day') {
+            const totalDays = timeUnits.length;
+            const daysDelta = Math.round((deltaPercent / 100) * totalDays);
+            
             if (dragState.mode === 'move') {
-                newStartDate.setDate(newStartDate.getDate() + deltaDays);
-                newEndDate.setDate(newEndDate.getDate() + deltaDays);
-            } else if (dragState.mode === 'resize-right') {
-                newEndDate.setDate(newEndDate.getDate() + deltaDays);
-                if (newEndDate < newStartDate) {
-                    newEndDate = newStartDate;
+                newStartDate.setDate(newStartDate.getDate() + daysDelta);
+                newEndDate.setDate(newEndDate.getDate() + daysDelta);
+            } else if (dragState.mode === 'resize-start') {
+                newStartDate = new Date(currentStart);
+                newStartDate.setDate(currentStart.getDate() + daysDelta);
+                // Vérifier que la nouvelle date de début n'est pas après la date de fin
+                if (newStartDate >= currentEnd) {
+                    newStartDate = new Date(currentEnd);
+                    newStartDate.setDate(currentEnd.getDate() - 1);
                 }
-            } else { // resize-left
-                newStartDate.setDate(newStartDate.getDate() + deltaDays);
-                if (newStartDate > newEndDate) {
-                    newStartDate = newEndDate;
+            } else if (dragState.mode === 'resize-end') {
+                newEndDate = new Date(currentEnd);
+                newEndDate.setDate(currentEnd.getDate() + daysDelta);
+                // Vérifier que la nouvelle date de fin n'est pas avant la date de début
+                if (newEndDate <= currentStart) {
+                    newEndDate = new Date(currentStart);
+                    newEndDate.setDate(currentStart.getDate() + 1);
                 }
             }
-
-            onUpdateAction(dragState.actionId, {
-                start_date: newStartDate.toISOString().split('T')[0],
-                due_date: newEndDate.toISOString().split('T')[0],
-            });
-        };
-
-        const handleMouseUp = () => {
-            const finalActionState = actions.find(a => a.id === dragState.actionId);
-            if (finalActionState) {
-                const finalActions = actions.map(a => a.id === dragState.actionId ? finalActionState : a);
-                saveActions(finalActions);
+        } else if (scale === 'week') {
+            const totalWeeks = timeUnits.length;
+            const weeksDelta = Math.round((deltaPercent / 100) * totalWeeks);
+            
+            if (dragState.mode === 'move') {
+                newStartDate.setDate(newStartDate.getDate() + (weeksDelta * 7));
+                newEndDate.setDate(newEndDate.getDate() + (weeksDelta * 7));
+            } else if (dragState.mode === 'resize-start') {
+                newStartDate = new Date(currentStart);
+                newStartDate.setDate(currentStart.getDate() + (weeksDelta * 7));
+                if (newStartDate >= currentEnd) {
+                    newStartDate = new Date(currentEnd);
+                    newStartDate.setDate(currentEnd.getDate() - 7);
+                }
+            } else if (dragState.mode === 'resize-end') {
+                newEndDate = new Date(currentEnd);
+                newEndDate.setDate(currentEnd.getDate() + (weeksDelta * 7));
+                if (newEndDate <= currentStart) {
+                    newEndDate = new Date(currentStart);
+                    newEndDate.setDate(currentStart.getDate() + 7);
+                }
             }
-            setDragState(null);
-        };
+        } else if (scale === 'month') {
+            const totalMonths = timeUnits.length;
+            const monthsDelta = Math.round((deltaPercent / 100) * totalMonths);
+            
+            if (dragState.mode === 'move') {
+                newStartDate.setMonth(newStartDate.getMonth() + monthsDelta);
+                newEndDate.setMonth(newEndDate.getMonth() + monthsDelta);
+            } else if (dragState.mode === 'resize-start') {
+                newStartDate = new Date(currentStart);
+                newStartDate.setMonth(currentStart.getMonth() + monthsDelta);
+                if (newStartDate >= currentEnd) {
+                    newStartDate = new Date(currentEnd);
+                    newStartDate.setMonth(currentEnd.getMonth() - 1);
+                }
+            } else if (dragState.mode === 'resize-end') {
+                newEndDate = new Date(currentEnd);
+                newEndDate.setMonth(currentEnd.getMonth() + monthsDelta);
+                if (newEndDate <= currentStart) {
+                    newEndDate = new Date(currentStart);
+                    newEndDate.setMonth(currentStart.getMonth() + 1);
+                }
+            }
+        }
 
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp, { once: true });
+        // Validation : la date de fin doit être après la date de début
+        if (newEndDate <= newStartDate) return;
+    };
 
-        return () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [dragState, actions, dayWidth, onUpdateAction, saveActions]);
+    const handleMouseUp = () => {
+        setDragState({
+            actionId: null,
+            mode: null,
+            startX: 0,
+            originalStart: new Date(),
+            originalEnd: new Date()
+        });
+    };
 
-    if (validActions.length === 0) {
-        return (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
-                <GanttChartSquare className="w-16 h-16 mb-4 text-gray-300" />
-                <h3 className="text-lg font-semibold mb-2">Aucune action planifiée</h3>
-                <p className="text-sm">Créez des actions pour voir le Gantt.</p>
-            </div>
-        );
-    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayPosition = (() => {
+        if (scale === 'day') {
+            return ((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * unitWidth;
+        } else if (scale === 'week') {
+            return ((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) * unitWidth;
+        } else {
+            const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
+            const todayMonth = today.getFullYear() * 12 + today.getMonth();
+            return (todayMonth - startMonth) * unitWidth;
+        }
+    })();
 
     return (
         <div className="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
-                <h3 className="text-lg font-semibold text-gray-900">Diagramme de Gantt</h3>
-                <div className="flex items-center gap-1 bg-white border border-gray-200 p-1 rounded-lg">
-                    <button onClick={() => setGanttScale('day')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'day' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Jour</button>
-                    <button onClick={() => setGanttScale('week')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'week' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Semaine</button>
-                    <button onClick={() => setGanttScale('month')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'month' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Mois</button>
+            {/* Header avec sélecteur d'échelle */}
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <GanttChartSquare className="w-5 h-5 text-blue-600" />
+                    Diagramme de Gantt
+                </h3>
+                <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                    {[
+                        { key: 'day', label: 'Jours', icon: '📅' },
+                        { key: 'week', label: 'Semaines', icon: '📊' },
+                        { key: 'month', label: 'Mois', icon: '🗓️' }
+                    ].map(({ key, label, icon }) => (
+                        <button
+                            key={key}
+                            onClick={() => setScale(key as any)}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                                scale === key
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                            <span>{icon}</span>
+                            {label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            <div ref={ganttContainerRef} className="flex-1 overflow-auto">
-                <div className="grid" style={{ gridTemplateColumns: '300px 1fr' }}>
-                    <div className="sticky top-0 bg-gray-100 border-r border-b border-gray-200 z-20">
-                        <div className="h-12 flex items-center px-4 font-semibold text-gray-700">Action</div>
-                    </div>
-                    <div className="sticky top-0 bg-gray-100 border-b border-gray-200 z-20">
-                        <div className="relative flex" style={{ width: `${totalWidth}px` }}>
-                            {timelineColumns.map((col, index) => (
-                                <div key={index} className="flex-shrink-0 text-center py-3 border-r border-gray-200" style={{ width: `${columnWidth}px` }}>
-                                    <span className="text-xs font-medium text-gray-600">{col.label}</span>
-                                </div>
-                            ))}
+            {/* Zone de défilement horizontal */}
+            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+                <div className="timeline-container relative" style={{ width: `${totalWidth}px`, minHeight: '100%' }}
+                     onMouseMove={handleMouseMove}
+                     onMouseUp={handleMouseUp}
+                     onMouseLeave={handleMouseUp}>
+                    {/* Timeline Header */}
+                    <div className="sticky top-0 bg-white z-20 border-b-2 border-gray-200">
+                        <div className="flex h-16">
+                            {timeUnits.map((unit, index) => {
+                                const formatted = formatTimeUnit(unit.date);
+                                return (
+                                    <div
+                                        key={index}
+                                        className="border-r border-gray-200 flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-50 to-white py-1"
+                                        style={{ width: `${unitWidth}px`, minWidth: '60px' }}
+                                    >
+                                        <div className="text-sm font-semibold text-gray-900">{formatted.main}</div>
+                                        {formatted.sub && (
+                                            <div className="text-xs text-gray-500">{formatted.sub}</div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    <div className="border-r border-gray-200">
-                        {validActions.map(action => (
-                            <div key={action.id} className="h-12 flex items-center px-4 border-b border-gray-100 hover:bg-gray-50">
-                                 <div className="flex items-center gap-2 w-full">
-                                     <AssigneeAvatars assignee_ids={action.assignee_ids} users={users} />
-                                     <p className="text-sm font-medium text-gray-800 truncate" title={action.title}>{action.title}</p>
-                                 </div>
+                    {/* Ligne "Aujourd'hui" */}
+                    {todayPosition >= 0 && todayPosition <= totalWidth && (
+                        <div
+                            className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-10 pointer-events-none"
+                            style={{ left: `${todayPosition}px` }}
+                        >
+                            <div className="absolute -top-6 -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1 rounded-md font-medium">
+                                Aujourd'hui
                             </div>
+                        </div>
+                    )}
+
+                    {/* Grille de fond */}
+                    <div className="absolute inset-0 top-16">
+                        {timeUnits.map((_, index) => (
+                            <div
+                                key={index}
+                                className="absolute top-0 bottom-0 border-r border-gray-100"
+                                style={{ left: `${index * unitWidth}px` }}
+                            />
                         ))}
                     </div>
 
-                    <div className="relative">
-                        {timelineColumns.map((_, index) => (
-                            <div key={index} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: `${index * columnWidth}px`, width: `${columnWidth}px`, zIndex: 1 }}></div>
-                        ))}
-
+                    {/* Barres d'actions */}
+                    <div className="relative pt-4 pb-4" style={{ marginTop: '64px' }}>
                         {validActions.map((action, index) => {
-                            const startDate = new Date(action.start_date + 'T00:00:00');
-                            const endDate = new Date(action.due_date + 'T00:00:00');
-                            const left = getPositionFromDate(startDate);
-
-                            // --- MODIFICATION PRINCIPALE ICI ---
-                            // On calcule la durée en millisecondes entre la fin et le début.
-                            const durationMs = endDate.getTime() - startDate.getTime();
-                            // On convertit en jours. On ajoute 1 car les dates sont inclusives (une tâche du 5 au 5 dure 1 jour).
-                            // On utilise Math.round pour éviter les problèmes de précision.
-                            const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24)) + 1;
-                            // La largeur est simplement la durée en jours multipliée par la largeur d'un jour.
-                            const width = durationDays * dayWidth;
-                            // --- FIN DE LA MODIFICATION ---
-
+                            const { left, width } = getPositionAndWidth(action);
                             const config = actionTypeConfig[action.type];
-                            const isCompleted = action.status === 'Fait';
+                            const assignees = action.assignee_ids.map(id => users.find(u => u.id === id)).filter(Boolean);
+                            
+                            const tooltipContent = `
+                                <div class="text-left">
+                                    <div class="font-bold text-sm mb-1">${action.title}</div>
+                                    <div class="text-xs text-gray-600 mb-1">
+                                        ${new Date(action.start_date).toLocaleDateString('fr-FR')} → 
+                                        ${new Date(action.due_date).toLocaleDateString('fr-FR')}
+                                    </div>
+                                    <div class="text-xs">
+                                        <span class="font-medium">Équipe:</span> 
+                                        ${assignees.map(u => u?.nom).join(', ') || 'Non assigné'}
+                                    </div>
+                                    <div class="text-xs mt-1">
+                                        <span class="inline-block px-1.5 py-0.5 rounded text-xs" style="background-color: ${config.color.replace('border-', 'bg-').replace('-500', '-100')}; color: ${config.textColor.replace('text-', '').replace('-600', '')}">
+                                            ${config.icon} ${config.name}
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
+
+                            const isBeingDragged = dragState.actionId === action.id;
 
                             return (
-                                <div key={action.id} className="absolute h-12 flex items-center" style={{ top: `${index * 48}px`, left: `${left}px`, width: `${width}px`, zIndex: 10 }}>
-                                    <Tooltip content={action.title}>
+                                <div
+                                    key={action.id}
+                                    className="absolute flex items-center"
+                                    style={{
+                                        top: `${index * 50 + 10}px`,
+                                        left: left,
+                                        width: width,
+                                        height: '36px'
+                                    }}
+                                >
+                                    <Tooltip content={tooltipContent}>
                                         <div
-                                            className={`w-full h-8 ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative group transition-all group-hover:brightness-110 ${isCompleted ? 'opacity-60' : ''}`}
+                                            onClick={() => onCardClick(action)}
+                                            className={`w-full h-full ${config.barBg} rounded-lg cursor-pointer flex items-center px-3 text-white text-sm font-medium shadow-sm hover:shadow-md transition-all hover:scale-105 border-l-4 ${isBeingDragged ? 'opacity-75 scale-105' : ''} relative`}
+                                            style={{ borderLeftColor: config.color.replace('border-', '').replace('-500', '') }}
                                             onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
-                                            onDoubleClick={() => onCardClick(action)}
+                                            title={`${action.title} - ${action.start_date} (${Math.ceil((new Date(action.due_date).getTime() - new Date(action.start_date).getTime()) / (1000 * 60 * 60 * 24))} jours)`}
                                         >
+                                            {/* Poignée de redimensionnement gauche */}
                                             <div
-                                                className="absolute left-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-l-md"
-                                                onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-left')}
+                                                className="absolute left-0 top-0 w-3 h-full cursor-ew-resize bg-black bg-opacity-20 hover:bg-opacity-40 transition-all rounded-l-md"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    handleMouseDown(e, action.id, 'resize-start');
+                                                }}
                                             />
-                                            <p className="text-xs font-semibold text-white truncate">{action.title}</p>
+                                            
+                                            <div className="flex items-center gap-2 w-full min-w-0">
+                                                <span className="text-xs">{config.icon}</span>
+                                                <span className="truncate flex-1">{action.title}</span>
+                                                {assignees.length > 0 && (
+                                                    <div className="flex -space-x-1">
+                                                        {assignees.slice(0, 3).map((user, i) => (
+                                                            <img
+                                                                key={i}
+                                                                src={user?.avatarUrl || `https://i.pravatar.cc/150?u=${user?.id}`}
+                                                                alt={user?.nom}
+                                                                className="w-5 h-5 rounded-full border border-white"
+                                                            />
+                                                        ))}
+                                                        {assignees.length > 3 && (
+                                                            <div className="w-5 h-5 rounded-full bg-gray-600 border border-white flex items-center justify-center text-xs">
+                                                                +{assignees.length - 3}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Poignée de redimensionnement droite */}
                                             <div
-                                                className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
-                                                onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
+                                                className="absolute right-0 top-0 w-3 h-full cursor-ew-resize bg-black bg-opacity-20 hover:bg-opacity-40 transition-all rounded-r-md"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    handleMouseDown(e, action.id, 'resize-end');
+                                                }}
                                             />
                                         </div>
                                     </Tooltip>
@@ -806,23 +1054,51 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                     </div>
                 </div>
             </div>
+
+            {/* Footer avec légende */}
+            <div className="border-t bg-gray-50 p-3">
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                    <div className="flex items-center gap-4">
+                        <span>💡 Glissez les barres pour déplacer, tirez les bords pour redimensionner</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4">
+                            <span className="font-medium">Légende :</span>
+                            {Object.entries(actionTypeConfig).map(([key, config]) => (
+                                <div key={key} className="flex items-center gap-1">
+                                    <div className={`w-3 h-3 ${config.barBg} rounded`}></div>
+                                    <span>{config.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="text-right">
+                            <div>Période : {startDate.toLocaleDateString('fr-FR')} → {endDate.toLocaleDateString('fr-FR')}</div>
+                            <div>{validActions.length} action(s) planifiée(s)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
 
+// --- COMPOSANT PRINCIPAL ---
+const TabButton = ({ active, onClick, children, icon }: { active: boolean, onClick: () => void, children: React.ReactNode, icon: React.ReactNode }) => (
+    <button onClick={onClick} className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${active ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
+        {icon} {children}
+    </button>
+);
+
 export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, onClose }) => {
-    const { currentUser } = useAuth();
     const { users: allUsersInApp } = useAuth();
     const { projectMembers, updateA3Module } = useDatabase();
 
-    const [view, setView] = useState('gantt');
+    const [view, setView] = useState('home');
     const [actions, setActions] = useState<Action[]>([]);
     const [loading, setLoading] = useState(true);
     const [isActionModalOpen, setIsActionModalOpen] = useState(false);
     const [editingAction, setEditingAction] = useState<Action | null>(null);
     const [showHelp, setShowHelp] = useState(false);
-
-    const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week');
 
     const currentProjectMembers = useMemo(() => {
         const memberIds = projectMembers
@@ -831,6 +1107,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
         return allUsersInApp.filter(user => memberIds.includes(user.id));
     }, [projectMembers, allUsersInApp, module.project]);
 
+
     useEffect(() => {
         const savedActions = module.content?.actions || [];
         setActions(savedActions);
@@ -838,40 +1115,23 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
     }, [module]);
 
     const saveActionsToDb = useCallback((updatedActions: Action[]) => {
+        setActions(updatedActions);
         updateA3Module(module.id, { content: { ...module.content, actions: updatedActions } });
     }, [module, updateA3Module]);
 
-    const handleSaveAction = useCallback((actionData: Partial<Action>) => {
+    const handleSaveAction = useCallback((actionData: Action) => {
         let updatedActions;
-        if (actionData.id) {
-            updatedActions = actions.map(a => a.id === actionData.id ? { ...a, ...actionData } as Action : a);
+        if (actionData.id && actions.some(a => a.id === actionData.id)) {
+            updatedActions = actions.map(a => a.id === actionData.id ? actionData : a);
         } else {
-            const newAction: Action = {
-                id: Date.now().toString(),
-                project: module.project,
-                createdBy: currentUser?.id || '',
-                ...actionData
-            } as Action;
-            updatedActions = [...actions, newAction];
+            updatedActions = [...actions, { ...actionData, id: Date.now().toString() }];
         }
-        setActions(updatedActions);
         saveActionsToDb(updatedActions);
         setIsActionModalOpen(false);
         setEditingAction(null);
-    }, [actions, saveActionsToDb, module.project, currentUser]);
-
-    const handleUpdateAction = useCallback((actionId: string, updates: Partial<Action>) => {
-        setActions(currentActions =>
-            currentActions.map(action =>
-                action.id === actionId
-                    ? { ...action, ...updates }
-                    : action
-            )
-        );
-    }, []);
+    }, [actions, saveActionsToDb]);
 
     const handleSetActions = useCallback((updatedActions: Action[], changedItem: Action) => {
-        setActions(updatedActions);
         saveActionsToDb(updatedActions);
     }, [saveActionsToDb]);
 
@@ -883,6 +1143,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 sm:p-8 z-50">
             <div className="bg-white rounded-2xl shadow-xl flex flex-col w-full h-full overflow-hidden">
+
                 <header className="flex items-center justify-between p-4 sm:p-6 border-b bg-white flex-shrink-0">
                     <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center">
@@ -919,16 +1180,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
                                 {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
-                                {view === 'gantt' && <GanttView
-                                    actions={actions}
-                                    users={currentProjectMembers}
-                                    onUpdateAction={handleUpdateAction}
-                                    saveActions={saveActionsToDb}
-                                    onCardClick={openActionModal}
-                                    ganttScale={ganttScale}
-                                    setGanttScale={setGanttScale}
-                                    module={module}
-                                />}
+                                {view === 'gantt' && <GanttView actions={actions} users={currentProjectMembers} onCardClick={openActionModal} />}
                             </>
                         )}
                     </main>
@@ -940,7 +1192,6 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
                     onSave={handleSaveAction}
                     action={editingAction}
                     projectMembers={currentProjectMembers}
-                    currentUser={currentUser}
                 />}
 
                 {showHelp && (
