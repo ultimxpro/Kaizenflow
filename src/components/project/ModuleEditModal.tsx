@@ -25,15 +25,15 @@ export const ModuleEditModal: React.FC<ModuleEditModalProps> = ({ module, onClos
         return <IshikawaEditor module={module} onClose={onClose} />;
       // MODIFICATION ICI : Le cas pour '5W1H' a été supprimé
       case 'OPL':
-        return <OplEditor module={module} />;
+        return <OplEditor module={module} onClose={onClose}/>;
       case '5S':
-        return <FiveSEditor module={module} />;
+        return <FiveSEditor module={module} onClose={onClose}/>;
       case 'VSM':
         return <VSMEditor module={module} onClose={onClose}/>;
       case 'Iframe':
-        return <IframeEditor module={module} />;
+        return <IframeEditor module={module} onClose={onClose}/>;
       case 'Croquis':
-        return <CroquisEditor module={module} />;
+        return <CroquisEditor module={module} onClose={onClose}/>;
       case 'PlanActions':
         return <PlanActionsEditor module={module} onClose={onClose}/>;
       default:
