@@ -544,16 +544,16 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
     );
 };
 
-const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, setGanttScale }: { 
-    actions: Action[], 
-    users: User[], 
-    onUpdateAction: (id: string, updates: Partial<Action>) => void, 
+const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, setGanttScale }: {
+    actions: Action[],
+    users: User[],
+    onUpdateAction: (id: string, updates: Partial<Action>) => void,
     onCardClick: (action: Action) => void,
     ganttScale: 'day' | 'week' | 'month',
     setGanttScale: (scale: 'day' | 'week' | 'month') => void
 }) => {
     const ganttRef = useRef<HTMLDivElement>(null);
-  
+
     const [confirmationModal, setConfirmationModal] = useState<{
         action: Action;
         newStartDate: string;
@@ -607,7 +607,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
         return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
     };
-    
+
     const timelineColumns = useMemo(() => {
         if (!ganttStartDate || !ganttEndDate) return [];
         const columns = [];
@@ -624,7 +624,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         }
         return columns;
     }, [ganttStartDate, ganttEndDate, ganttScale]);
-    
+
     const totalWidth = useMemo(() => timelineColumns.reduce((acc, col) => acc + col.width, 0), [timelineColumns]);
 
     const getPositionFromDate = useCallback((date: Date): number => {
@@ -635,7 +635,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
 
         for (const col of timelineColumns) {
             const colStartTime = col.date.getTime();
-            
+
             const nextDate = new Date(col.date);
             if (ganttScale === 'day') nextDate.setDate(nextDate.getDate() + 1);
             else if (ganttScale === 'week') nextDate.setDate(nextDate.getDate() + 7);
@@ -660,7 +660,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
 
         const left = getPositionFromDate(actionStart);
         const right = getPositionFromDate(actionEnd);
-        
+
         return { left, width: Math.max(10, right - left) };
     };
 
@@ -692,7 +692,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         switch (scale) {
             case 'week':
                 const day = newDate.getDay();
-                const diff = newDate.getDate() - day + (day === 0 ? -6 : 1); 
+                const diff = newDate.getDate() - day + (day === 0 ? -6 : 1);
                 newDate.setDate(diff);
                 break;
             case 'month':
@@ -772,6 +772,8 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
             if (finalStartDateStr !== originalStartDateStr || finalEndDateStr !== originalEndDateStr) {
                  onUpdateAction(dragState.actionId, { start_date: finalStartDateStr, due_date: finalEndDateStr });
                  setConfirmationModal({ action, newStartDate: finalStartDateStr, newEndDate: finalEndDateStr, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
+            } else {
+                 onUpdateAction(dragState.actionId, { start_date: originalStartDateStr, due_date: originalEndDateStr });
             }
             
             setDragState(null);
@@ -786,7 +788,19 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         };
     }, [dragState, actions, ganttScale, getPositionFromDate, getDateFromPosition, onUpdateAction]);
 
-    const handleConfirm = () => setConfirmationModal(null);
+    const handleConfirm = () => {
+        if (!confirmationModal) return;
+        const { action, newStartDate, newEndDate } = confirmationModal;
+        updateA3Module(module.id, {
+            content: {
+                ...module.content,
+                actions: actions.map(a =>
+                    a.id === action.id ? { ...a, start_date: newStartDate, due_date: newEndDate } : a
+                ),
+            },
+        });
+        setConfirmationModal(null);
+    };
     const handleCancel = () => {
         if (!confirmationModal) return;
         onUpdateAction(confirmationModal.action.id, {
@@ -795,7 +809,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         });
         setConfirmationModal(null);
     };
-    
+
     const formatDuration = (days: number) => {
         if (days >= 28 && Math.abs(days % 7) < 2) {
             const months = Math.round(days / 30.44);
@@ -913,6 +927,8 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         </div>
     );
 };
+
+
 // --- COMPOSANT PRINCIPAL ---
 const TabButton = ({ active, onClick, children, icon }: { active: boolean, onClick: () => void, children: React.ReactNode, icon: React.ReactNode }) => (
     <button onClick={onClick} className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${active ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
