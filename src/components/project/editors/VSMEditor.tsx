@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { A3Module } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
-import { 
-  HelpCircle, X, Workflow, ZoomIn, ZoomOut, Move
+import {
+  HelpCircle, X, Workflow
 } from 'lucide-react';
 import { VSMToolbar } from './vsm/VSMToolbar';
 import { VSMCanvas } from './vsm/VSMCanvas';
@@ -36,8 +36,9 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
 
   // Fonctions de manipulation des éléments
   const addElement = (type: VSMElementType) => {
-    const centerX = (window.innerWidth / 2 - viewState.pan.x) / viewState.zoom;
-    const centerY = (window.innerHeight / 2 - viewState.pan.y) / viewState.zoom;
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    const centerX = ((canvasRect?.width || window.innerWidth) / 2 - viewState.pan.x) / viewState.zoom;
+    const centerY = ((canvasRect?.height || window.innerHeight) / 2 - viewState.pan.y) / viewState.zoom;
     
     const newElement: VSMElement = {
       id: `el-${Date.now()}`,
@@ -257,20 +258,27 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
   const selectedConnection = useMemo(() => content.connections.find(c => c.id === selectedItemId), [content.connections, selectedItemId]);
 
   return (
-    <div className="fixed inset-0 bg-gray-900 flex flex-col z-50">
+    <div className="flex flex-col h-full w-full">
       {/* Header */}
-      <header className="flex items-center justify-between p-3 border-b bg-white flex-shrink-0 z-20 shadow-md">
+      <header className="flex items-center justify-between p-3 border-b bg-white flex-shrink-0 z-20 shadow-sm rounded-t-lg">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
             <Workflow className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">Éditeur VSM Professionnel</h1>
-            <p className="text-xs text-gray-500">Value Stream Mapping - {content.global?.title || 'Sans titre'}</p>
+            <h1 className="text-xl font-bold text-gray-800">Éditeur VSM</h1>
+            <p className="text-xs text-gray-500">{content.global?.title || 'Value Stream Mapping'}</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <VSMToolbar 
+            <button onClick={() => setShowHelp(true)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Aide">
+                <HelpCircle className="w-5 h-5 text-gray-600" />
+            </button>
+        </div>
+      </header>
+
+      <div className="flex items-center justify-center p-2 border-b bg-gray-50">
+        <VSMToolbar 
             onAddElement={addElement} 
             mode={mode} 
             setMode={setMode}
@@ -283,18 +291,11 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
             setShowGrid={setShowGrid}
             showMetrics={showMetrics}
             setShowMetrics={setShowMetrics}
-          />
-          <button onClick={() => setShowHelp(true)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Aide">
-            <HelpCircle className="w-5 h-5 text-gray-600" />
-          </button>
-          <button onClick={onClose} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Fermer">
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
-      </header>
+        />
+      </div>
       
       {/* Main Content */}
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden bg-gray-50 rounded-b-lg">
         <VSMCanvas
           ref={canvasRef}
           content={content}
@@ -312,7 +313,7 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
         />
 
         {/* Right Panel */}
-        <aside className="w-96 bg-white border-l flex flex-col z-10">
+        <aside className="w-80 bg-white border-l flex flex-col z-10">
           <VSMDetailsPanel 
             element={selectedElement}
             connection={selectedConnection}
