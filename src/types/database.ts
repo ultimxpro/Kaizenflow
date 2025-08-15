@@ -53,25 +53,21 @@ export interface ModuleAssignee {
   user: string; // User ID
 }
 
-// --- MODIFICATION MAJEURE ICI ---
-// Standardisation du type Action
 export interface Action {
   id: string;
   title: string;
   description?: string;
-  type: 'simple' | 'securisation' | 'poka-yoke'; // Standardisé sur 'type'
+  type: 'simple' | 'securisation' | 'poka-yoke';
   start_date: string; 
   due_date: string;
-  status: 'À faire' | 'Fait'; // Simplifié pour le Kanban
-  effort: number; // 1-10
-  gain: number; // 1-10
-  project: string; // Project ID
-  createdBy: string; // User ID
+  status: 'À faire' | 'Fait';
+  effort: number;
+  gain: number;
+  project: string;
+  createdBy: string;
   assignee_ids: string[];
   leader_id?: string;
 }
-// --- FIN DE LA MODIFICATION MAJEURE ---
-
 
 export interface ActionAssignee {
   id: string;
@@ -79,6 +75,7 @@ export interface ActionAssignee {
   user: string; // User ID
 }
 
+// ... (le reste de vos types ToolData, VSMElement, etc. reste inchangé)
 export interface ToolData {
   '5Pourquoi': {
     problem: string;
