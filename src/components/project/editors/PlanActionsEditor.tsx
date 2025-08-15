@@ -553,7 +553,7 @@ const TabButton = ({ active, onClick, children, icon }: { active: boolean, onCli
     </button>
 );
 
-const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, ganttScale, setGanttScale, module }: {
+const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, ganttScale, setGanttScale }: {
     actions: Action[],
     users: User[],
     onUpdateAction: (id: string, updates: Partial<Action>) => void,
@@ -561,16 +561,14 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
     onCardClick: (action: Action) => void,
     ganttScale: 'day' | 'week' | 'month',
     setGanttScale: (scale: 'day' | 'week' | 'month') => void,
-    module: A3Module
 }) => {
-    const ganttRef = useRef<HTMLDivElement>(null);
+    const ganttContainerRef = useRef<HTMLDivElement>(null);
 
     const [dragState, setDragState] = useState<{
         actionId: string;
         mode: 'move' | 'resize-right';
         startX: number;
         originalStartDate: Date;
-        originalEndDate: Date;
         originalDurationMs: number;
     } | null>(null);
 
@@ -580,130 +578,81 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
         [actions]
     );
 
-    const getGanttDateRange = useCallback(() => {
+    const { ganttStartDate, ganttEndDate } = useMemo(() => {
         if (validActions.length === 0) {
             const today = new Date();
             const start = new Date(today);
-            start.setHours(0,0,0,0);
             start.setDate(today.getDate() - 30);
             const end = new Date(today);
-            end.setHours(0,0,0,0);
             end.setDate(today.getDate() + 60);
-            return { start, end };
+            return { ganttStartDate: start, ganttEndDate: end };
         }
         const allDates = validActions.flatMap(a => [new Date(a.start_date), new Date(a.due_date)]);
         const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
         const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
-        minDate.setHours(0,0,0,0);
-        maxDate.setHours(0,0,0,0);
         minDate.setDate(minDate.getDate() - 7);
         maxDate.setDate(maxDate.getDate() + 14);
-        return { start: minDate, end: maxDate };
+        return { ganttStartDate: minDate, ganttEndDate: maxDate };
     }, [validActions]);
 
-    const { start: ganttStartDate, end: ganttEndDate } = getGanttDateRange();
+    const getScaleConfig = useCallback(() => {
+        switch(ganttScale) {
+            case 'week': return { step: 7, columnWidth: 80 };
+            case 'month': return { step: 30, columnWidth: 150 };
+            case 'day':
+            default: return { step: 1, columnWidth: 50 };
+        }
+    }, [ganttScale]);
 
-    const getISOWeekNumber = (date: Date): number => {
-        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-        const dayNum = d.getUTCDay() || 7;
-        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-        return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-    };
+    const { columnWidth } = getScaleConfig();
+    const dayWidth = columnWidth / getScaleConfig().step;
 
     const timelineColumns = useMemo(() => {
         if (!ganttStartDate || !ganttEndDate) return [];
         const columns = [];
         let current = new Date(ganttStartDate);
+        
+        if (ganttScale === 'week') {
+            const day = current.getDay();
+            current.setDate(current.getDate() - (day === 0 ? 6 : day - 1));
+        } else if (ganttScale === 'month') {
+            current.setDate(1);
+        }
+
         while (current <= ganttEndDate) {
-            let label = '', nextDate = new Date(current), width = 0;
-            switch (ganttScale) {
-                case 'day': label = current.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); nextDate.setDate(current.getDate() + 1); width = 50; break;
-                case 'week': label = `S${getISOWeekNumber(current)}`; nextDate.setDate(current.getDate() + 7); width = 80; break;
-                case 'month': label = current.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }); nextDate.setMonth(current.getMonth() + 1); width = 150; break;
+            let label = '';
+            const nextDate = new Date(current);
+            if (ganttScale === 'day') {
+                label = current.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+                nextDate.setDate(current.getDate() + 1);
+            } else if (ganttScale === 'week') {
+                const weekNum = Math.ceil((((current.getTime() - new Date(current.getFullYear(), 0, 1).getTime()) / 86400000) + 1) / 7);
+                label = `S${weekNum}`;
+                nextDate.setDate(current.getDate() + 7);
+            } else {
+                label = current.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+                nextDate.setMonth(current.getMonth() + 1);
             }
-            columns.push({ date: new Date(current), label, width });
+            columns.push({ date: new Date(current), label });
             current = nextDate;
         }
         return columns;
     }, [ganttStartDate, ganttEndDate, ganttScale]);
+    
+    const totalWidth = timelineColumns.length * columnWidth;
 
-    const totalWidth = useMemo(() => timelineColumns.reduce((acc, col) => acc + col.width, 0), [timelineColumns]);
-
-    const getPositionFromDate = useCallback((date: Date): number => {
-        if (!timelineColumns.length) return 0;
-
-        let currentPosition = 0;
-        const targetTime = date.getTime();
-
-        for (const col of timelineColumns) {
-            const colStartTime = col.date.getTime();
-
-            const nextDate = new Date(col.date);
-            if (ganttScale === 'day') nextDate.setDate(nextDate.getDate() + 1);
-            else if (ganttScale === 'week') nextDate.setDate(nextDate.getDate() + 7);
-            else if (ganttScale === 'month') nextDate.setMonth(nextDate.getMonth() + 1);
-            const colEndTime = nextDate.getTime();
-
-            if (targetTime >= colStartTime && targetTime < colEndTime) {
-                const percentage = (targetTime - colStartTime) / (colEndTime - colStartTime);
-                return currentPosition + (col.width * percentage);
-            }
-            currentPosition += col.width;
-        }
-
-        if (targetTime < timelineColumns[0].date.getTime()) return 0;
-        return totalWidth;
-    }, [timelineColumns, ganttScale, totalWidth]);
-
-    const calculateBarPositionAndWidth = (action: Action) => {
-        const actionStart = new Date(action.start_date + 'T00:00:00');
-        const actionEnd = new Date(action.due_date + 'T00:00:00');
-        actionEnd.setDate(actionEnd.getDate() + 1); // Make it inclusive for width calculation
-
-        const left = getPositionFromDate(actionStart);
-        const right = getPositionFromDate(actionEnd);
-
-        return { left, width: Math.max(10, right - left) };
-    };
-
-    const getDateFromPosition = useCallback((position: number): Date => {
-        if (!timelineColumns.length || !ganttStartDate) return new Date();
-        let currentPosition = 0;
-        let pos = Math.max(0, Math.min(position, totalWidth));
-
-        for (const col of timelineColumns) {
-            if (pos >= currentPosition && pos <= currentPosition + col.width) {
-                const percentage = (pos - currentPosition) / col.width;
-                const colStartTime = col.date.getTime();
-                const nextDate = new Date(col.date);
-                if (ganttScale === 'day') nextDate.setDate(nextDate.getDate() + 1);
-                else if (ganttScale === 'week') nextDate.setDate(nextDate.getDate() + 7);
-                else if (ganttScale === 'month') nextDate.setMonth(nextDate.getMonth() + 1);
-                const colEndTime = nextDate.getTime();
-                const timeOffset = (colEndTime - colStartTime) * percentage;
-                return new Date(colStartTime + timeOffset);
-            }
-            currentPosition += col.width;
-        }
-        return ganttEndDate || new Date();
-    }, [timelineColumns, ganttScale, ganttStartDate, ganttEndDate, totalWidth]);
-
-    const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month') => {
-        const newDate = new Date(date);
-        newDate.setHours(0, 0, 0, 0);
-        switch (scale) {
-            case 'week':
-                const day = newDate.getDay();
-                const diff = newDate.getDate() - day + (day === 0 ? -6 : 1);
-                newDate.setDate(diff);
-                break;
-            case 'month':
-                newDate.setDate(1);
-                break;
-        }
+    const getPositionFromDate = useCallback((date: Date) => {
+        const diffMs = date.getTime() - ganttStartDate.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        return diffDays * dayWidth;
+    }, [ganttStartDate, dayWidth]);
+    
+    const getDateFromPosition = useCallback((position: number) => {
+        const diffDays = position / dayWidth;
+        const newDate = new Date(ganttStartDate);
+        newDate.setDate(newDate.getDate() + diffDays);
         return newDate;
-    };
+    }, [ganttStartDate, dayWidth]);
 
     const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right') => {
         e.preventDefault();
@@ -711,38 +660,37 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
         const action = validActions.find(a => a.id === actionId);
         if (!action) return;
 
-        const originalStartDate = new Date(action.start_date);
-        const originalEndDate = new Date(action.due_date);
+        const originalStartDate = new Date(action.start_date + 'T00:00:00');
+        const originalEndDate = new Date(action.due_date + 'T00:00:00');
         const originalDurationMs = originalEndDate.getTime() - originalStartDate.getTime();
 
         setDragState({
             actionId, mode, startX: e.clientX,
-            originalStartDate, originalEndDate, originalDurationMs
+            originalStartDate, originalDurationMs
         });
     };
 
     useEffect(() => {
         if (!dragState) return;
 
-        const startPos = getPositionFromDate(dragState.originalStartDate);
-
         const handleMouseMove = (e: MouseEvent) => {
-            if (!ganttRef.current) return;
             const deltaX = e.clientX - dragState.startX;
-            let newStartDate: Date, newEndDate: Date;
+            const deltaDays = deltaX / dayWidth;
+
+            let newStartDate: Date;
+            let newEndDate: Date;
 
             if (dragState.mode === 'move') {
-                const newPos = startPos + deltaX;
-                newStartDate = getDateFromPosition(newPos);
+                newStartDate = new Date(dragState.originalStartDate);
+                newStartDate.setDate(newStartDate.getDate() + deltaDays);
                 newEndDate = new Date(newStartDate.getTime() + dragState.originalDurationMs);
             } else { // resize-right
                 newStartDate = new Date(dragState.originalStartDate);
-                const endPos = getPositionFromDate(new Date(dragState.originalEndDate.getTime() + (1000 * 60 * 60 * 24)));
-                const newEndPos = endPos + deltaX;
-                newEndDate = getDateFromPosition(newEndPos);
-                newEndDate.setDate(newEndDate.getDate() - 1);
-                if (newEndDate.getTime() < newStartDate.getTime()) {
-                    newEndDate = new Date(newStartDate.getTime());
+                const originalEndDate = new Date(dragState.originalStartDate.getTime() + dragState.originalDurationMs);
+                newEndDate = new Date(originalEndDate);
+                newEndDate.setDate(newEndDate.getDate() + deltaDays);
+                if (newEndDate < newStartDate) {
+                    newEndDate = newStartDate;
                 }
             }
 
@@ -753,25 +701,11 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
         };
 
         const handleMouseUp = () => {
-            const action = actions.find(a => a.id === dragState.actionId);
-            if (!action || !dragState) {
-                setDragState(null);
-                return;
+            const finalActionState = actions.find(a => a.id === dragState.actionId);
+            if (finalActionState) {
+                const finalActions = actions.map(a => a.id === dragState.actionId ? finalActionState : a);
+                saveActions(finalActions);
             }
-
-            const currentStartDate = new Date(action.start_date);
-            const durationMs = new Date(action.due_date).getTime() - currentStartDate.getTime();
-            
-            const finalStartDate = snapDateToScale(currentStartDate, ganttScale);
-            const finalEndDate = new Date(finalStartDate.getTime() + durationMs);
-
-            const finalActions = actions.map(a => 
-                a.id === dragState.actionId
-                ? { ...a, start_date: finalStartDate.toISOString().split('T')[0], due_date: finalEndDate.toISOString().split('T')[0] }
-                : a
-            );
-
-            saveActions(finalActions);
             setDragState(null);
         };
 
@@ -782,19 +716,7 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [dragState, actions, ganttScale, getPositionFromDate, getDateFromPosition, onUpdateAction, saveActions]);
-
-    const formatDuration = (days: number) => {
-        if (days >= 28 && Math.abs(days % 7) < 2) {
-            const months = Math.round(days / 30.44);
-            return `${months} mois`;
-        }
-        if (days >= 7 && days % 7 === 0) {
-            const weeks = days / 7;
-            return `${weeks} sem.`;
-        }
-        return `${days}j`;
-    };
+    }, [dragState, actions, dayWidth, onUpdateAction, saveActions, getDateFromPosition]);
 
     if (validActions.length === 0) {
         return (
@@ -817,7 +739,7 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto">
+            <div ref={ganttContainerRef} className="flex-1 overflow-auto">
                 <div className="grid" style={{ gridTemplateColumns: '300px 1fr' }}>
                     <div className="sticky top-0 bg-gray-100 border-r border-b border-gray-200 z-20">
                         <div className="h-12 flex items-center px-4 font-semibold text-gray-700">Action</div>
@@ -825,7 +747,7 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                     <div className="sticky top-0 bg-gray-100 border-b border-gray-200 z-20">
                         <div className="relative flex" style={{ width: `${totalWidth}px` }}>
                             {timelineColumns.map((col, index) => (
-                                <div key={index} className="flex-shrink-0 text-center py-3 border-r border-gray-200" style={{ width: `${col.width}px` }}>
+                                <div key={index} className="flex-shrink-0 text-center py-3 border-r border-gray-200" style={{ width: `${columnWidth}px` }}>
                                     <span className="text-xs font-medium text-gray-600">{col.label}</span>
                                 </div>
                             ))}
@@ -843,32 +765,29 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                         ))}
                     </div>
 
-                    <div ref={ganttRef} className="relative">
-                        {timelineColumns.map((col, index, arr) => (
-                            <div key={index} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: `${arr.slice(0, index).reduce((acc, c) => acc + c.width, 0)}px`, width: `${col.width}px`, zIndex: 1 }}></div>
+                    <div className="relative">
+                        {timelineColumns.map((_, index) => (
+                            <div key={index} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: `${index * columnWidth}px`, width: `${columnWidth}px`, zIndex: 1 }}></div>
                         ))}
 
                         {validActions.map((action, index) => {
-                            const { left, width } = calculateBarPositionAndWidth(action);
+                            const startDate = new Date(action.start_date + 'T00:00:00');
+                            const endDate = new Date(action.due_date + 'T00:00:00');
+                            const left = getPositionFromDate(startDate);
+                            const width = getPositionFromDate(new Date(endDate.getTime() + 86400000)) - left;
+
                             const config = actionTypeConfig[action.type];
-                            const quadrant = getQuadrant(action.gain, action.effort);
-                            const duration = Math.ceil((new Date(action.due_date).getTime() - new Date(action.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1;
                             const isCompleted = action.status === 'Fait';
-                            const tooltipContent = `<div class="text-left p-1"><div class="font-bold text-base mb-2">${action.title}</div><div class="text-xs text-gray-300 mb-2">${new Date(action.start_date + 'T00:00:00').toLocaleDateString('fr-FR')} → ${new Date(action.due_date + 'T00:00:00').toLocaleDateString('fr-FR')}</div><div class="text-xs font-semibold px-2 py-1 rounded-full w-fit ${quadrant.color} ${quadrant.textColor}">${quadrant.name}</div></div>`;
 
                             return (
                                 <div key={action.id} className="absolute h-12 flex items-center" style={{ top: `${index * 48}px`, left: `${left}px`, width: `${width}px`, zIndex: 10 }}>
-                                    <Tooltip content={tooltipContent}>
+                                    <Tooltip content={action.title}>
                                         <div
                                             className={`w-full h-8 ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative transition-all group-hover:brightness-110 ${isCompleted ? 'opacity-60' : ''}`}
                                             onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
                                             onDoubleClick={() => onCardClick(action)}
                                         >
-                                            <p className="text-xs font-semibold text-white truncate">
-                                                {isCompleted && '✅ '}
-                                                {action.title}
-                                            </p>
-                                            <span className="text-xs text-white/80 font-mono ml-2">{formatDuration(duration)}</span>
+                                            <p className="text-xs font-semibold text-white truncate">{action.title}</p>
                                             <div
                                                 className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
                                                 onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
@@ -881,7 +800,7 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                     </div>
                 </div>
             </div>
-        </div>
+      </div>
     );
 };
 
