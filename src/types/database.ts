@@ -76,7 +76,7 @@ export interface ActionAssignee {
 }
 
 // =======================================================================
-// === NOUVELLES STRUCTURES DE DONNÉES POUR LE MODULE VSM COMPLET ===
+// === STRUCTURES DE DONNÉES POUR LE MODULE VSM PROFESSIONNEL ===
 // =======================================================================
 
 export type VSMElementType =
@@ -86,9 +86,10 @@ export type VSMElementType =
   | 'Stock'
   | 'ControleProduction'
   | 'Livraison'
-  | 'Texte';
+  | 'Texte'
+  | 'Kaizen';
 
-export type VSMConnectionArrow = 'pousse' | 'retrait';
+export type VSMConnectionArrow = 'pousse' | 'retrait' | 'supermarche';
 export type VSMInfoFlowType = 'manuel' | 'electronique';
 
 export interface VSMGlobalData {
@@ -113,15 +114,15 @@ export interface VSMElement {
     rebut?: number;           // (%) Processus
     quantite?: number;        // Stock (en jours)
     frequence?: string;       // Livraison, Client, Fournisseur
-    details?: string;         // ControleProduction, Texte
+    details?: string;         // ControleProduction, Texte, Kaizen
     contenu?: string;         // Texte
   };
 }
 
 export interface VSMConnection {
   id: string;
-  from: string;
-  to: string;
+  from: { elementId: string; anchor: 'top' | 'bottom' | 'left' | 'right' };
+  to: { elementId: string; anchor: 'top' | 'bottom' | 'left' | 'right' };
   type: 'matiere' | 'information';
   data?: {
     arrowType?: VSMConnectionArrow;
