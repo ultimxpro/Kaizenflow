@@ -1,3 +1,4 @@
+
 // src/components/project/editors/PlanActionsEditor.tsx
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -548,258 +549,441 @@ const MatrixView = ({ actions, setActions, users, onCardClick }: { actions: Acti
     );
 };
 
-// Remplace complètement l'ancien GanttView dans src/components/project/editors/PlanActionsEditor.tsx
-
-const GanttView = ({ actions, users, onUpdateAction, onCardClick }: { actions: Action[], users: User[], onUpdateAction: (id: string, updates: Partial<Action>) => void, onCardClick: (action: Action) => void }) => {
-  const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week');
-  const ganttRef = useRef<HTMLDivElement>(null);
-  const [dragState, setDragState] = useState<{
-    actionId: string;
-    mode: 'move' | 'resize-left' | 'resize-right';
-    startX: number;
-    originalStartDate: Date;
-    originalEndDate: Date;
-  } | null>(null);
-
-  const validActions = useMemo(() => actions
-    .filter(a => a.start_date && a.due_date && !isNaN(new Date(a.start_date).getTime()) && !isNaN(new Date(a.due_date).getTime()))
-    .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()),
-    [actions]
-  );
-  
-  // 1. ADAPTATION: Utilise start_date et due_date
-  const getGanttDateRange = useCallback(() => {
-    if (validActions.length === 0) {
-      const today = new Date();
-      const start = new Date(today);
-      start.setDate(today.getDate() - 30);
-      const end = new Date(today);
-      end.setDate(today.getDate() + 60);
-      return { start, end };
-    }
-    const allDates = validActions.flatMap(a => [new Date(a.start_date), new Date(a.due_date)]);
-    const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-    const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
-    
-    minDate.setDate(minDate.getDate() - 7);
-    maxDate.setDate(maxDate.getDate() + 14);
-    return { start: minDate, end: maxDate };
-  }, [validActions]);
-
-  const { start: ganttStartDate, end: ganttEndDate } = getGanttDateRange();
-
-  // Fonction pour obtenir le numéro de semaine ISO (gardée du code fonctionnel)
-  const getISOWeekNumber = (date: Date): number => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  };
-  
-  // 2. LOGIQUE DE TIMELINE (inchangée)
-  const timelineColumns = useMemo(() => {
-    const columns = [];
-    let current = new Date(ganttStartDate);
-    while (current <= ganttEndDate) {
-      let label = '';
-      let nextDate = new Date(current);
-      switch (ganttScale) {
-        case 'day':
-          label = current.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-          nextDate.setDate(current.getDate() + 1);
-          break;
-        case 'week':
-          label = `S${getISOWeekNumber(current)}`;
-          nextDate.setDate(current.getDate() + 7);
-          break;
-        case 'month':
-          label = current.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-          nextDate.setMonth(current.getMonth() + 1);
-          break;
-      }
-      columns.push({
-        date: new Date(current),
-        label,
-        width: ganttScale === 'day' ? 50 : ganttScale === 'week' ? 80 : 150
-      });
-      current = nextDate;
-    }
-    return columns;
-  }, [ganttStartDate, ganttEndDate, ganttScale]);
-  
-  // 3. ADAPTATION: Calcul de la position avec start_date et due_date
-  const calculateBarPosition = (action: Action) => {
-    const totalDuration = ganttEndDate.getTime() - ganttStartDate.getTime();
-    if (totalDuration <= 0) return { left: 0, width: 0 };
-    
-    const actionStart = new Date(action.start_date).getTime();
-    const actionEnd = new Date(action.due_date).getTime();
-
-    const startOffset = actionStart - ganttStartDate.getTime();
-    const actionDuration = actionEnd - actionStart;
-
-    const left = (startOffset / totalDuration) * 100;
-    const width = (actionDuration / totalDuration) * 100;
-
-    return { left: Math.max(0, left), width: Math.max(0.5, width) }; // 0.5% de largeur min pour visibilité
-  };
-  
-  // 4. LOGIQUE DE DRAG & DROP ADAPTÉE
-  const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-left' | 'resize-right') => {
-    e.preventDefault();
-    e.stopPropagation();
-    const action = validActions.find(a => a.id === actionId);
-    if (!action) return;
-
-    setDragState({
-      actionId,
-      mode,
-      startX: e.clientX,
-      originalStartDate: new Date(action.start_date),
-      originalEndDate: new Date(action.due_date),
+const GanttView = ({ actions, users, onCardClick }: { actions: Action[], users: User[], onCardClick: (action: Action) => void }) => {
+    const [scale, setScale] = useState<'day' | 'week' | 'month'>('day');
+    const [dragState, setDragState] = useState<{
+        actionId: string | null;
+        mode: 'move' | 'resize-start' | 'resize-end' | null;
+        startX: number;
+        originalStart: Date;
+        originalEnd: Date;
+    }>({
+        actionId: null,
+        mode: null,
+        startX: 0,
+        originalStart: new Date(),
+        originalEnd: new Date()
     });
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!dragState || !ganttRef.current) return;
-
-      const rect = ganttRef.current.getBoundingClientRect();
-      const totalTime = ganttEndDate.getTime() - ganttStartDate.getTime();
-      const pixelToTime = totalTime / rect.width;
-      const deltaX = e.clientX - dragState.startX;
-      const deltaTime = deltaX * pixelToTime;
-
-      let newStartDate = new Date(dragState.originalStartDate);
-      let newEndDate = new Date(dragState.originalEndDate);
-
-      if (dragState.mode === 'move') {
-        newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
-        newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-      } else if (dragState.mode === 'resize-left') {
-        newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
-        if (newStartDate >= newEndDate) { // Empêche l'inversion
-            newStartDate.setTime(newEndDate.getTime() - 86400000); // 1 jour min
-        }
-      } else if (dragState.mode === 'resize-right') {
-        newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-        if (newEndDate <= newStartDate) { // Empêche l'inversion
-            newEndDate.setTime(newStartDate.getTime() + 86400000); // 1 jour min
-        }
-      }
-      
-      onUpdateAction(dragState.actionId, {
-        start_date: newStartDate.toISOString().split('T')[0],
-        due_date: newEndDate.toISOString().split('T')[0],
-      });
-    };
     
-    const handleMouseUp = () => {
-        setDragState(null);
-    };
-
-    if (dragState) {
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    }
-    
-    return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragState, onUpdateAction, ganttStartDate, ganttEndDate]);
-
-  if (validActions.length === 0) {
-    return (
-        <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
-            <GanttChartSquare className="w-16 h-16 mb-4 text-gray-300" />
-            <h3 className="text-lg font-semibold mb-2">Aucune action planifiée</h3>
-            <p className="text-sm">Créez des actions avec des dates de début et de fin pour voir le Gantt.</p>
-        </div>
-    );
-  }
-
-  const totalWidth = timelineColumns.reduce((acc, col) => acc + col.width, 0);
-
-  return (
-    <div className="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900">Diagramme de Gantt</h3>
-            <div className="flex items-center gap-1 bg-white border border-gray-200 p-1 rounded-lg">
-                <button onClick={() => setGanttScale('day')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'day' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Jour</button>
-                <button onClick={() => setGanttScale('week')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'week' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Semaine</button>
-                <button onClick={() => setGanttScale('month')} className={`px-3 py-1 text-sm rounded ${ganttScale === 'month' ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}>Mois</button>
+    if (actions.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
+                <GanttChartSquare className="w-16 h-16 mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold mb-2">Aucune action planifiée</h3>
+                <p className="text-sm">Créez des actions avec des dates pour voir le diagramme de Gantt</p>
             </div>
-        </div>
+        );
+    }
 
-        <div className="flex-1 overflow-auto">
-            <div className="grid" style={{ gridTemplateColumns: '250px 1fr' }}>
-                {/* Header Actions */}
-                <div className="sticky top-0 bg-gray-100 border-r border-b border-gray-200 z-20">
-                    <div className="h-12 flex items-center px-4 font-semibold text-gray-700">Action</div>
+    const validActions = actions.filter(a => 
+        a.start_date && a.due_date && 
+        !isNaN(new Date(a.start_date).getTime()) && 
+        !isNaN(new Date(a.due_date).getTime())
+    ).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    
+    if (validActions.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-50 rounded-lg">
+                <Calendar className="w-16 h-16 mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold mb-2">Dates manquantes</h3>
+                <p className="text-sm">Ajoutez des dates de début et de fin aux actions pour voir le Gantt</p>
+            </div>
+        );
+    }
+
+    // Calcul des dates limites
+    const minTime = Math.min(...validActions.map(a => new Date(a.start_date).getTime()));
+    const maxTime = Math.max(...validActions.map(a => new Date(a.due_date).getTime()));
+    
+    const startDate = new Date(minTime);
+    const endDate = new Date(maxTime);
+    
+    // Ajustement des dates selon l'échelle
+    if (scale === 'week') {
+        startDate.setDate(startDate.getDate() - startDate.getDay()); // Début de semaine
+        endDate.setDate(endDate.getDate() + (6 - endDate.getDay()) + 7); // Fin de semaine + 1 semaine
+    } else if (scale === 'month') {
+        startDate.setDate(1); // Début du mois
+        endDate.setMonth(endDate.getMonth() + 1, 1); // Début du mois suivant
+    } else {
+        startDate.setDate(startDate.getDate() - 3); // 3 jours avant
+        endDate.setDate(endDate.getDate() + 3); // 3 jours après
+    }
+
+    // Fonction pour obtenir le numéro de semaine française (ISO 8601)
+    const getWeekNumber = (date: Date): number => {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    };
+
+    // Fonction pour obtenir le lundi d'une semaine donnée
+    const getMondayOfWeek = (year: number, week: number): Date => {
+        const jan4 = new Date(year, 0, 4);
+        const jan4Day = jan4.getDay() || 7;
+        const mondayOfWeek1 = new Date(jan4.getTime() - (jan4Day - 1) * 86400000);
+        return new Date(mondayOfWeek1.getTime() + (week - 1) * 7 * 86400000);
+    };
+
+    // Calcul des unités et largeur
+    const getTimeUnits = () => {
+        const units = [];
+        let current = new Date(startDate);
+        
+        while (current <= endDate) {
+            units.push(new Date(current));
+            
+            if (scale === 'day') {
+                current.setDate(current.getDate() + 1);
+            } else if (scale === 'week') {
+                current.setDate(current.getDate() + 7);
+            } else {
+                current.setMonth(current.getMonth() + 1);
+            }
+        }
+        return units;
+    };
+
+    const timeUnits = getTimeUnits();
+    const unitWidth = scale === 'day' ? 40 : scale === 'week' ? 80 : 120;
+    const totalWidth = timeUnits.length * unitWidth;
+
+    const getPositionAndWidth = (action: Action) => {
+        const actionStart = new Date(action.start_date);
+        const actionEnd = new Date(action.due_date);
+        
+        let startPos = 0;
+        let endPos = 0;
+        
+        if (scale === 'day') {
+            startPos = (actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+            endPos = (actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+        } else if (scale === 'week') {
+            startPos = (actionStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7);
+            endPos = (actionEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7);
+        } else {
+            const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
+            const actionStartMonth = actionStart.getFullYear() * 12 + actionStart.getMonth();
+            const actionEndMonth = actionEnd.getFullYear() * 12 + actionEnd.getMonth();
+            
+            startPos = actionStartMonth - startMonth;
+            endPos = actionEndMonth - startMonth + 1;
+        }
+        
+        return {
+            left: Math.max(0, startPos * unitWidth),
+            width: Math.max(unitWidth * 0.1, (endPos - startPos) * unitWidth)
+        };
+    };
+
+    const formatTimeUnit = (date: Date) => {
+        if (scale === 'day') {
+            return {
+                main: date.getDate().toString(),
+                sub: date.getDate() === 1 ? date.toLocaleDateString('fr-FR', { month: 'short' }) : ''
+            };
+        } else if (scale === 'week') {
+            const weekEnd = new Date(date);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            return {
+                main: `S${Math.ceil(date.getDate() / 7)}`,
+                sub: date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' })
+            };
+        } else {
+            return {
+                main: date.toLocaleDateString('fr-FR', { month: 'short' }),
+                sub: date.getFullYear().toString()
+            };
+        }
+    };
+
+    // Fonctions de drag & drop
+    const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-start' | 'resize-end') => {
+        e.preventDefault();
+        const action = actions.find(a => a.id === actionId);
+        if (!action) return;
+
+        setDragState({
+            actionId,
+            mode,
+            startX: e.clientX,
+            originalStart: new Date(action.start_date),
+            originalEnd: new Date(action.due_date)
+        });
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!dragState.actionId || !dragState.mode) return;
+
+        const deltaX = e.clientX - dragState.startX;
+        const unitWidth = scale === 'day' ? 40 : scale === 'week' ? 80 : 120;
+        
+        let unitsToMove = Math.round(deltaX / unitWidth);
+        let newStartDate = new Date(dragState.originalStart);
+        let newEndDate = new Date(dragState.originalEnd);
+
+        switch (scale) {
+            case 'day':
+                if (dragState.mode === 'move') {
+                    newStartDate.setDate(newStartDate.getDate() + unitsToMove);
+                    newEndDate.setDate(newEndDate.getDate() + unitsToMove);
+                } else if (dragState.mode === 'resize-end') {
+                    newEndDate.setDate(newEndDate.getDate() + unitsToMove);
+                } else if (dragState.mode === 'resize-start') {
+                    newStartDate.setDate(newStartDate.getDate() + unitsToMove);
+                }
+                break;
+            case 'week':
+                if (dragState.mode === 'move') {
+                    newStartDate.setDate(newStartDate.getDate() + (unitsToMove * 7));
+                    newEndDate.setDate(newEndDate.getDate() + (unitsToMove * 7));
+                } else if (dragState.mode === 'resize-end') {
+                    newEndDate.setDate(newEndDate.getDate() + (unitsToMove * 7));
+                } else if (dragState.mode === 'resize-start') {
+                    newStartDate.setDate(newStartDate.getDate() + (unitsToMove * 7));
+                }
+                break;
+            case 'month':
+                if (dragState.mode === 'move') {
+                    newStartDate.setMonth(newStartDate.getMonth() + unitsToMove);
+                    newEndDate.setMonth(newEndDate.getMonth() + unitsToMove);
+                } else if (dragState.mode === 'resize-end') {
+                    newEndDate.setMonth(newEndDate.getMonth() + unitsToMove);
+                } else if (dragState.mode === 'resize-start') {
+                    newStartDate.setMonth(newStartDate.getMonth() + unitsToMove);
+                }
+                break;
+        }
+
+        // Validation : la date de fin doit être après la date de début
+        if (newEndDate <= newStartDate) return;
+    };
+
+    const handleMouseUp = () => {
+        setDragState({
+            actionId: null,
+            mode: null,
+            startX: 0,
+            originalStart: new Date(),
+            originalEnd: new Date()
+        });
+    };
+
+    const today = new Date();
+    const todayPosition = (() => {
+        if (scale === 'day') {
+            return ((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) * unitWidth;
+        } else if (scale === 'week') {
+            return ((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) * unitWidth;
+        } else {
+            const startMonth = startDate.getFullYear() * 12 + startDate.getMonth();
+            const todayMonth = today.getFullYear() * 12 + today.getMonth();
+            return (todayMonth - startMonth) * unitWidth;
+        }
+    })();
+
+    return (
+        <div className="h-full flex flex-col bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            {/* Header avec sélecteur d'échelle */}
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <GanttChartSquare className="w-5 h-5 text-blue-600" />
+                    Diagramme de Gantt
+                </h3>
+                <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                    {[
+                        { key: 'day', label: 'Jours', icon: '📅' },
+                        { key: 'week', label: 'Semaines', icon: '📊' },
+                        { key: 'month', label: 'Mois', icon: '🗓️' }
+                    ].map(({ key, label, icon }) => (
+                        <button
+                            key={key}
+                            onClick={() => setScale(key as any)}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1 ${
+                                scale === key
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                            <span>{icon}</span>
+                            {label}
+                        </button>
+                    ))}
                 </div>
-                {/* Header Timeline */}
-                <div className="sticky top-0 bg-gray-100 border-b border-gray-200 z-20">
-                    <div className="relative flex" style={{ width: `${totalWidth}px` }}>
-                        {timelineColumns.map((col, index) => (
-                            <div key={index} className="flex-shrink-0 text-center py-3 border-r border-gray-200" style={{ width: `${col.width}px` }}>
-                                <span className="text-xs font-medium text-gray-600">{col.label}</span>
+            </div>
+
+            {/* Zone de défilement horizontal */}
+            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+                <div className="relative" style={{ width: `${totalWidth}px`, minHeight: '100%' }}
+                     onMouseMove={handleMouseMove}
+                     onMouseUp={handleMouseUp}
+                     onMouseLeave={handleMouseUp}>
+                    {/* Timeline Header */}
+                    <div className="sticky top-0 bg-white z-20 border-b-2 border-gray-200">
+                        <div className="flex h-16">
+                            {timeUnits.map((unit, index) => {
+                                const formatted = formatTimeUnit(unit);
+                                return (
+                                    <div
+                                        key={index}
+                                        className="border-r border-gray-200 flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-50 to-white"
+                                        style={{ width: `${unitWidth}px` }}
+                                    >
+                                        <div className="text-sm font-semibold text-gray-900">{formatted.main}</div>
+                                        {formatted.sub && (
+                                            <div className="text-xs text-gray-500">{formatted.sub}</div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Ligne "Aujourd'hui" */}
+                    {todayPosition >= 0 && todayPosition <= totalWidth && (
+                        <div
+                            className="absolute top-0 bottom-0 border-l-2 border-red-500 border-dashed z-10 pointer-events-none"
+                            style={{ left: `${todayPosition}px` }}
+                        >
+                            <div className="absolute -top-6 -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1 rounded-md font-medium">
+                                Aujourd'hui
                             </div>
+                        </div>
+                    )}
+
+                    {/* Grille de fond */}
+                    <div className="absolute inset-0 top-16">
+                        {timeUnits.map((_, index) => (
+                            <div
+                                key={index}
+                                className="absolute top-0 bottom-0 border-r border-gray-100"
+                                style={{ left: `${index * unitWidth}px` }}
+                            />
                         ))}
                     </div>
-                </div>
 
-                {/* Liste des Actions */}
-                <div className="border-r border-gray-200">
-                    {validActions.map(action => {
-                         const config = actionTypeConfig[action.type];
-                         return(
-                            <div key={action.id} className={`h-12 flex items-center px-4 border-b border-gray-100 border-l-4 ${config.color}`}>
-                                <p className="text-sm font-medium text-gray-800 truncate" title={action.title}>{action.title}</p>
-                            </div>
-                         )
-                    })}
-                </div>
-                {/* Zone du Gantt */}
-                <div ref={ganttRef} className="relative overflow-hidden" style={{ width: `${totalWidth}px` }}>
-                    {/* Grille verticale */}
-                    {timelineColumns.map((col, index) => (
-                        <div key={index} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: `${timelineColumns.slice(0, index + 1).reduce((acc, c) => acc + c.width, 0)}px`, zIndex: 1 }}></div>
-                    ))}
                     {/* Barres d'actions */}
-                    {validActions.map((action, index) => {
-                        const { left, width } = calculateBarPosition(action);
-                        const config = actionTypeConfig[action.type];
-                        return (
-                            <div
-                                key={action.id}
-                                className="absolute h-8 rounded-md flex items-center group"
-                                style={{ top: `${index * 48 + 8}px`, left: `${left}%`, width: `${width}%`, zIndex: 10 }}
-                            >
-                                <div
-                                    className={`w-full h-full ${config.barBg} rounded shadow-sm cursor-move flex items-center px-2 relative transition-all group-hover:opacity-90`}
-                                    onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
-                                    onClick={() => onCardClick(action)}
-                                >
-                                    <div 
-                                      className="absolute left-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-l-md"
-                                      onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-left')}
-                                    />
-                                    <p className="text-xs font-semibold text-white truncate pl-1">{action.title}</p>
-                                    <div 
-                                      className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
-                                      onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
-                                    />
+                    <div className="relative pt-4 pb-4" style={{ marginTop: '64px' }}>
+                        {validActions.map((action, index) => {
+                            const { left, width } = getPositionAndWidth(action);
+                            const config = actionTypeConfig[action.type];
+                            const assignees = action.assignee_ids.map(id => users.find(u => u.id === id)).filter(Boolean);
+                            
+                            const tooltipContent = `
+                                <div class="text-left">
+                                    <div class="font-bold text-sm mb-1">${action.title}</div>
+                                    <div class="text-xs text-gray-600 mb-1">
+                                        ${new Date(action.start_date).toLocaleDateString('fr-FR')} → 
+                                        ${new Date(action.due_date).toLocaleDateString('fr-FR')}
+                                    </div>
+                                    <div class="text-xs">
+                                        <span class="font-medium">Équipe:</span> 
+                                        ${assignees.map(u => u?.nom).join(', ') || 'Non assigné'}
+                                    </div>
+                                    <div class="text-xs mt-1">
+                                        <span class="inline-block px-1.5 py-0.5 rounded text-xs" style="background-color: ${config.color.replace('border-', 'bg-').replace('-500', '-100')}; color: ${config.textColor.replace('text-', '').replace('-600', '')}">
+                                            ${config.icon} ${config.name}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        )
-                    })}
+                            `;
+
+                            const isBeingDragged = dragState.actionId === action.id;
+
+                            return (
+                                <div
+                                    key={action.id}
+                                    className="absolute flex items-center"
+                                    style={{
+                                        top: `${index * 50 + 10}px`,
+                                        left: `${left}px`,
+                                        width: `${width}px`,
+                                        height: '36px'
+                                    }}
+                                >
+                                    <Tooltip content={tooltipContent}>
+                                        <div
+                                            onClick={() => onCardClick(action)}
+                                            className={`w-full h-full ${config.barBg} rounded-lg cursor-pointer flex items-center px-3 text-white text-sm font-medium shadow-sm hover:shadow-md transition-all hover:scale-105 border-l-4 ${isBeingDragged ? 'opacity-75 scale-105' : ''}`}
+                                            style={{ borderLeftColor: config.color.replace('border-', '').replace('-500', '') }}
+                                            onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
+                                            title={`${action.title} - ${action.start_date} (${Math.ceil((new Date(action.due_date).getTime() - new Date(action.start_date).getTime()) / (1000 * 60 * 60 * 24))} jours)`}
+                                        >
+                                            {/* Poignée de redimensionnement gauche */}
+                                            <div
+                                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMouseDown(e, action.id, 'resize-start');
+                                                }}
+                                            />
+                                            
+                                            <div className="flex items-center gap-2 w-full min-w-0">
+                                                <span className="text-xs">{config.icon}</span>
+                                                <span className="truncate flex-1">{action.title}</span>
+                                                {assignees.length > 0 && (
+                                                    <div className="flex -space-x-1">
+                                                        {assignees.slice(0, 3).map((user, i) => (
+                                                            <img
+                                                                key={i}
+                                                                src={user?.avatarUrl || `https://i.pravatar.cc/150?u=${user?.id}`}
+                                                                alt={user?.nom}
+                                                                className="w-5 h-5 rounded-full border border-white"
+                                                            />
+                                                        ))}
+                                                        {assignees.length > 3 && (
+                                                            <div className="w-5 h-5 rounded-full bg-gray-600 border border-white flex items-center justify-center text-xs">
+                                                                +{assignees.length - 3}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Poignée de redimensionnement droite */}
+                                            <div
+                                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white hover:bg-opacity-30"
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMouseDown(e, action.id, 'resize-end');
+                                                }}
+                                            />
+                                        </div>
+                                    </Tooltip>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer avec légende */}
+            <div className="border-t bg-gray-50 p-3">
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                    <div className="flex items-center gap-4">
+                        <span>💡 Glissez les barres pour déplacer, tirez les bords pour redimensionner</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4">
+                            <span className="font-medium">Légende :</span>
+                            {Object.entries(actionTypeConfig).map(([key, config]) => (
+                                <div key={key} className="flex items-center gap-1">
+                                    <div className={`w-3 h-3 ${config.barBg} rounded`}></div>
+                                    <span>{config.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="text-right">
+                            <div>Période : {startDate.toLocaleDateString('fr-FR')} → {endDate.toLocaleDateString('fr-FR')}</div>
+                            <div>{validActions.length} action(s) planifiée(s)</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-  );
+    );
 };
 
 // --- COMPOSANT PRINCIPAL ---
@@ -851,14 +1035,6 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
         setEditingAction(null);
     }, [actions, saveActionsToDb]);
 
-    const handleUpdateAction = useCallback((actionId: string, updates: Partial<Action>) => {
-    const updatedActions = actions.map(a => 
-        a.id === actionId ? { ...a, ...updates } : a
-    );
-    saveActionsToDb(updatedActions);
-  }, [actions, saveActionsToDb]);
-
-  
     const handleSetActions = useCallback((updatedActions: Action[], changedItem: Action) => {
         saveActionsToDb(updatedActions);
     }, [saveActionsToDb]);
@@ -908,12 +1084,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
                                 {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
-                                {view === 'gantt' && <GanttView 
-    actions={actions} 
-    users={currentProjectMembers} 
-    onUpdateAction={handleUpdateAction} // <-- AJOUTEZ CETTE PROP
-    onCardClick={openActionModal} 
-/>}
+                                {view === 'gantt' && <GanttView actions={actions} users={currentProjectMembers} onCardClick={openActionModal} />}
                             </>
                         )}
                     </main>
