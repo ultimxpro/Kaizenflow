@@ -4,78 +4,185 @@ import { useDatabase } from '../../../contexts/DatabaseContext';
 import { 
   HelpCircle, Square, Triangle, User, Truck, ArrowRight, Type, Save, Trash2, GitMerge, 
   MousePointer, X, Settings, Clock, Users, Percent, Boxes, HardDrive, Edit2, MessageSquare, 
-  Plus, Workflow, Zap, Eye, Minus, ZoomIn, ZoomOut, Move, Link2, Unlink2
+  Plus, Workflow, Zap, Eye, Minus, ZoomIn, ZoomOut, Move, Link2, Unlink2, Download, Upload,
+  Factory, Package, Timer, Activity, AlertTriangle, TrendingUp, FileText, Copy, Layers
 } from 'lucide-react';
+
+// --- CONFIGURATION & TYPES ---
+interface VSMMetrics {
+  leadTime: number;
+  valueAddedTime: number;
+  processEfficiency: number;
+  taktTime: number;
+  uptime: number;
+  firstPassYield: number;
+}
+
+interface VSMSnapshot {
+  id: string;
+  name: string;
+  date: Date;
+  content: VSMContent;
+  metrics: VSMMetrics;
+}
 
 // --- INITIAL STATE & EXAMPLE DATA ---
 const getInitialContent = (content: any): VSMContent => {
   if (content && content.elements && content.elements.length > 0) {
     return content;
   }
-  // --- EXEMPLE CONCRET : USINE DE FABRICATION DE PIÈCES MÉTALLIQUES ---
+  
+  // Exemple professionnel complet
   return {
-    global: { demandeClient: 18400, tempsOuverture: 28800, uniteTemps: 'secondes' },
+    global: { 
+      demandeClient: 18400, 
+      tempsOuverture: 28800, 
+      uniteTemps: 'secondes',
+      title: 'VSM - Ligne de Production',
+      company: 'Manufacturing Corp',
+      product: 'Pièce métallique ref. XYZ-123',
+      author: 'Équipe Kaizen',
+      version: '1.0',
+      date: new Date().toISOString()
+    },
     elements: [
-      { id: 'el-fournisseur', type: 'Fournisseur', x: 50, y: 300, width: 150, height: 100, data: { nom: 'Aciérie XYZ', frequence: '2 / semaine' } },
-      { id: 'el-stock1', type: 'Stock', x: 250, y: 350, width: 80, height: 70, data: { quantite: 5 } },
-      { id: 'el-decoupe', type: 'Processus', x: 400, y: 300, width: 180, height: 120, data: { nom: 'Découpe Laser', tempsCycle: 39, tempsChangt: 600, tauxDispo: 100, nbOperateurs: 1, rebut: 1 } },
-      { id: 'el-stock2', type: 'Stock', x: 650, y: 350, width: 80, height: 70, data: { quantite: 2 } },
-      { id: 'el-pliage', type: 'Processus', x: 800, y: 300, width: 180, height: 120, data: { nom: 'Pliage', tempsCycle: 46, tempsChangt: 900, tauxDispo: 80, nbOperateurs: 1, rebut: 4 } },
-      { id: 'el-stock3', type: 'Stock', x: 1050, y: 350, width: 80, height: 70, data: { quantite: 1.5 } },
-      { id: 'el-soudure', type: 'Processus', x: 1200, y: 300, width: 180, height: 120, data: { nom: 'Soudure', tempsCycle: 62, tempsChangt: 0, tauxDispo: 90, nbOperateurs: 1, rebut: 1 } },
-      { id: 'el-stock4', type: 'Stock', x: 1450, y: 350, width: 80, height: 70, data: { quantite: 2.7 } },
-      { id: 'el-assemblage', type: 'Processus', x: 1600, y: 300, width: 180, height: 120, data: { nom: 'Assemblage', tempsCycle: 40, tempsChangt: 0, tauxDispo: 100, nbOperateurs: 1, rebut: 0.5 } },
-      { id: 'el-stock5', type: 'Stock', x: 1850, y: 350, width: 80, height: 70, data: { quantite: 1.2 } },
-      { id: 'el-livraison', type: 'Livraison', x: 2000, y: 300, width: 150, height: 100, data: { nom: 'Expédition', frequence: 'Quotidienne' } },
-      { id: 'el-client', type: 'Client', x: 2200, y: 300, width: 150, height: 100, data: { nom: 'Client Final', frequence: '18400 p / mois' } },
-      { id: 'el-controleprod', type: 'ControleProduction', x: 1050, y: 80, width: 180, height: 100, data: { nom: 'Contrôle Production' } },
-      { id: 'el-kaizen1', type: 'Kaizen', x: 500, y: 450, width: 100, height: 80, data: { details: 'Réduire TCH Pliage' } },
+      { id: 'el-fournisseur', type: 'Fournisseur', x: 50, y: 300, width: 150, height: 100, data: { nom: 'Aciérie XYZ', frequence: '2 / semaine', details: 'Livraison par camion\nMOQ: 1000 pièces' } },
+      { id: 'el-stock1', type: 'Stock', x: 250, y: 350, width: 80, height: 70, data: { quantite: 5, details: '~2500 pièces' } },
+      { id: 'el-decoupe', type: 'Processus', x: 400, y: 300, width: 180, height: 120, data: { nom: 'Découpe Laser', tempsCycle: 39, tempsChangt: 600, tauxDispo: 100, nbOperateurs: 1, rebut: 1, lotSize: 50 } },
+      { id: 'el-stock2', type: 'Stock', x: 650, y: 350, width: 80, height: 70, data: { quantite: 2, details: '~1000 pièces' } },
+      { id: 'el-pliage', type: 'Processus', x: 800, y: 300, width: 180, height: 120, data: { nom: 'Pliage', tempsCycle: 46, tempsChangt: 900, tauxDispo: 80, nbOperateurs: 1, rebut: 4, lotSize: 25 } },
+      { id: 'el-stock3', type: 'Stock', x: 1050, y: 350, width: 80, height: 70, data: { quantite: 1.5, details: '~750 pièces' } },
+      { id: 'el-soudure', type: 'Processus', x: 1200, y: 300, width: 180, height: 120, data: { nom: 'Soudure', tempsCycle: 62, tempsChangt: 0, tauxDispo: 90, nbOperateurs: 1, rebut: 1, lotSize: 10 } },
+      { id: 'el-stock4', type: 'Stock', x: 1450, y: 350, width: 80, height: 70, data: { quantite: 2.7, details: '~1350 pièces' } },
+      { id: 'el-assemblage', type: 'Processus', x: 1600, y: 300, width: 180, height: 120, data: { nom: 'Assemblage', tempsCycle: 40, tempsChangt: 0, tauxDispo: 100, nbOperateurs: 1, rebut: 0.5, lotSize: 20 } },
+      { id: 'el-stock5', type: 'Stock', x: 1850, y: 350, width: 80, height: 70, data: { quantite: 1.2, details: '~600 pièces' } },
+      { id: 'el-livraison', type: 'Livraison', x: 2000, y: 300, width: 150, height: 100, data: { nom: 'Expédition', frequence: 'Quotidienne', details: 'Transporteur: DHL\nDélai: J+1' } },
+      { id: 'el-client', type: 'Client', x: 2200, y: 300, width: 150, height: 100, data: { nom: 'Client Final', frequence: '920 p/jour', details: 'Automobile OEM' } },
+      { id: 'el-controleprod', type: 'ControleProduction', x: 1050, y: 80, width: 180, height: 100, data: { nom: 'Planification', details: 'ERP: SAP\nMRP hebdomadaire' } },
+      { id: 'el-kaizen1', type: 'Kaizen', x: 850, y: 450, width: 100, height: 80, data: { details: 'Réduire TCH\nde 900s à 300s' } },
+      { id: 'el-kaizen2', type: 'Kaizen', x: 1250, y: 450, width: 100, height: 80, data: { details: 'SMED\nChangement < 10min' } },
     ],
     connections: [
-      { id: 'c1', from: { elementId: 'el-fournisseur', anchor: 'right' }, to: { elementId: 'el-decoupe', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
-      { id: 'c2', from: { elementId: 'el-decoupe', anchor: 'right' }, to: { elementId: 'el-pliage', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
+      { id: 'c1', from: { elementId: 'el-fournisseur', anchor: 'right' }, to: { elementId: 'el-decoupe', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse', label: 'Tôles brutes' } },
+      { id: 'c2', from: { elementId: 'el-decoupe', anchor: 'right' }, to: { elementId: 'el-pliage', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse', label: 'Pièces découpées' } },
       { id: 'c3', from: { elementId: 'el-pliage', anchor: 'right' }, to: { elementId: 'el-soudure', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
       { id: 'c4', from: { elementId: 'el-soudure', anchor: 'right' }, to: { elementId: 'el-assemblage', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
-      { id: 'c5', from: { elementId: 'el-assemblage', anchor: 'right' }, to: { elementId: 'el-livraison', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
+      { id: 'c5', from: { elementId: 'el-assemblage', anchor: 'right' }, to: { elementId: 'el-livraison', anchor: 'left' }, type: 'matiere', data: { arrowType: 'retrait' } },
       { id: 'c6', from: { elementId: 'el-livraison', anchor: 'right' }, to: { elementId: 'el-client', anchor: 'left' }, type: 'matiere' },
-      { id: 'c7', from: { elementId: 'el-client', anchor: 'top' }, to: { elementId: 'el-controleprod', anchor: 'right' }, type: 'information', data: { infoType: 'electronique', details: 'Prévisions' } },
-      { id: 'c8', from: { elementId: 'el-controleprod', anchor: 'left' }, to: { elementId: 'el-fournisseur', anchor: 'top' }, type: 'information', data: { infoType: 'electronique', details: 'Commandes' } },
-      { id: 'c9', from: { elementId: 'el-controleprod', anchor: 'bottom' }, to: { elementId: 'el-assemblage', anchor: 'top' }, type: 'information', data: { infoType: 'manuel', details: 'Planning' } },
-    ]
+      { id: 'c7', from: { elementId: 'el-client', anchor: 'top' }, to: { elementId: 'el-controleprod', anchor: 'right' }, type: 'information', data: { infoType: 'electronique', details: 'Prévisions 6 mois' } },
+      { id: 'c8', from: { elementId: 'el-controleprod', anchor: 'left' }, to: { elementId: 'el-fournisseur', anchor: 'top' }, type: 'information', data: { infoType: 'electronique', details: 'Commandes hebdo' } },
+      { id: 'c9', from: { elementId: 'el-controleprod', anchor: 'bottom' }, to: { elementId: 'el-assemblage', anchor: 'top' }, type: 'information', data: { infoType: 'manuel', details: 'Planning quotidien' } },
+    ],
+    snapshots: [],
+    comments: []
   };
 };
 
 const unitMultipliers = { secondes: 1, minutes: 60, heures: 3600, jours: 86400 };
 
+const elementColors = {
+  Fournisseur: { bg: 'bg-purple-100', border: 'border-purple-500', icon: 'text-purple-700' },
+  Client: { bg: 'bg-green-100', border: 'border-green-600', icon: 'text-green-700' },
+  Processus: { bg: 'bg-blue-100', border: 'border-blue-500', icon: 'text-blue-700' },
+  Stock: { bg: 'bg-orange-100', border: 'border-orange-500', icon: 'text-orange-700' },
+  ControleProduction: { bg: 'bg-slate-100', border: 'border-slate-500', icon: 'text-slate-700' },
+  Livraison: { bg: 'bg-gray-100', border: 'border-gray-500', icon: 'text-gray-700' },
+  Kaizen: { bg: 'bg-yellow-100', border: 'border-yellow-500', icon: 'text-yellow-700' },
+  Texte: { bg: 'bg-white', border: 'border-gray-300', icon: 'text-gray-600' }
+};
+
+// --- COMPOSANT PRINCIPAL ---
 export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = ({ module, onClose }) => {
   const { updateA3Module } = useDatabase();
   const [content, setContent] = useState<VSMContent>(() => getInitialContent(module.content));
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [viewState, setViewState] = useState({ zoom: 0.7, pan: { x: 0, y: 0 } });
-  const [mode, setMode] = useState<'select' | 'connect'>('select');
+  const [viewState, setViewState] = useState({ zoom: 0.8, pan: { x: 0, y: 0 } });
+  const [mode, setMode] = useState<'select' | 'connect' | 'pan'>('select');
   const [connectingFrom, setConnectingFrom] = useState<{elementId: string, anchor: 'top' | 'bottom' | 'left' | 'right'} | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
+  const [showMetrics, setShowMetrics] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
+  const [copiedElement, setCopiedElement] = useState<VSMElement | null>(null);
   
   const canvasRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
+  // Sauvegarde automatique
   useEffect(() => {
-    const handler = setTimeout(() => updateA3Module(module.id, { content }), 1500);
+    const handler = setTimeout(() => updateA3Module(module.id, { content }), 1000);
     return () => clearTimeout(handler);
   }, [content, module.id, updateA3Module]);
 
-  const addElement = (type: VSMElementType) => {
-    const newElement: VSMElement = {
-      id: `el-${Date.now()}`, type,
-      x: (200 - viewState.pan.x) / viewState.zoom,
-      y: (type === 'Processus' || type === 'Stock' ? 300 : 80) - viewState.pan.y / viewState.zoom,
-      width: 180, height: 120, data: { nom: `Nouveau ${type}` }
+  // Calcul des métriques
+  const metrics = useMemo((): VSMMetrics => {
+    const processes = content.elements.filter(el => el.type === 'Processus');
+    const stocks = content.elements.filter(el => el.type === 'Stock');
+    
+    const valueAddedTime = processes.reduce((sum, p) => sum + (p.data.tempsCycle || 0), 0);
+    const leadTime = valueAddedTime + stocks.reduce((sum, s) => sum + ((s.data.quantite || 0) * 86400), 0);
+    const processEfficiency = leadTime > 0 ? (valueAddedTime / leadTime) * 100 : 0;
+    
+    const taktTime = content.global.tempsOuverture / (content.global.demandeClient / 30);
+    
+    const avgUptime = processes.length > 0 
+      ? processes.reduce((sum, p) => sum + (p.data.tauxDispo || 100), 0) / processes.length 
+      : 100;
+    
+    const avgYield = processes.length > 0 
+      ? processes.reduce((sum, p) => sum + (100 - (p.data.rebut || 0)), 0) / processes.length 
+      : 100;
+
+    return {
+      leadTime: leadTime / 86400,
+      valueAddedTime,
+      processEfficiency,
+      taktTime,
+      uptime: avgUptime,
+      firstPassYield: avgYield
     };
-    if (type === 'Kaizen') { newElement.width = 100; newElement.height = 80; }
+  }, [content]);
+
+  // Fonctions de manipulation des éléments
+  const addElement = (type: VSMElementType) => {
+    const centerX = (window.innerWidth / 2 - viewState.pan.x) / viewState.zoom;
+    const centerY = (window.innerHeight / 2 - viewState.pan.y) / viewState.zoom;
+    
+    const newElement: VSMElement = {
+      id: `el-${Date.now()}`,
+      type,
+      x: centerX - 90,
+      y: centerY - 60,
+      width: type === 'Kaizen' || type === 'Stock' ? 100 : 180,
+      height: type === 'Stock' ? 80 : type === 'Kaizen' ? 80 : 120,
+      data: { nom: `Nouveau ${type}` }
+    };
+    
     setContent(c => ({ ...c, elements: [...c.elements, newElement] }));
+    setSelectedItemId(newElement.id);
   };
 
-  const updateElement = (id: string, newElement: VSMElement) => setContent(c => ({ ...c, elements: c.elements.map(el => el.id === id ? newElement : el) }));
+  const duplicateElement = () => {
+    if (!selectedItemId) return;
+    const element = content.elements.find(el => el.id === selectedItemId);
+    if (!element) return;
+    
+    const newElement: VSMElement = {
+      ...element,
+      id: `el-${Date.now()}`,
+      x: element.x + 20,
+      y: element.y + 20,
+      data: { ...element.data, nom: `${element.data.nom} (copie)` }
+    };
+    
+    setContent(c => ({ ...c, elements: [...c.elements, newElement] }));
+    setSelectedItemId(newElement.id);
+  };
+
+  const updateElement = (id: string, newElement: VSMElement) => {
+    setContent(c => ({ ...c, elements: c.elements.map(el => el.id === id ? newElement : el) }));
+  };
+
   const deleteElement = (id: string) => {
     setContent(c => ({
       ...c,
@@ -84,16 +191,59 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
     }));
     setSelectedItemId(null);
   };
-  
+
+  const deleteConnection = (id: string) => {
+    setContent(c => ({
+      ...c,
+      connections: c.connections.filter(conn => conn.id !== id)
+    }));
+  };
+
+  // Gestion du zoom et pan
   const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomFactor = 1.05;
-    const newZoom = e.deltaY < 0 ? viewState.zoom * zoomFactor : viewState.zoom / zoomFactor;
-    setViewState(vs => ({ ...vs, zoom: Math.max(0.2, Math.min(2, newZoom)) }));
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const zoomFactor = 1.1;
+      const newZoom = e.deltaY < 0 ? viewState.zoom * zoomFactor : viewState.zoom / zoomFactor;
+      setViewState(vs => ({ ...vs, zoom: Math.max(0.2, Math.min(3, newZoom)) }));
+    }
+  };
+
+  const resetView = () => {
+    setViewState({ zoom: 1, pan: { x: 0, y: 0 } });
+  };
+
+  const zoomToFit = () => {
+    if (content.elements.length === 0) return;
+    
+    const bounds = content.elements.reduce((acc, el) => ({
+      minX: Math.min(acc.minX, el.x),
+      maxX: Math.max(acc.maxX, el.x + el.width),
+      minY: Math.min(acc.minY, el.y),
+      maxY: Math.max(acc.maxY, el.y + el.height)
+    }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+    
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    
+    if (canvasRect) {
+      const scaleX = (canvasRect.width - 100) / width;
+      const scaleY = (canvasRect.height - 100) / height;
+      const newZoom = Math.min(scaleX, scaleY, 1.5);
+      
+      setViewState({
+        zoom: newZoom,
+        pan: {
+          x: (canvasRect.width - width * newZoom) / 2 - bounds.minX * newZoom,
+          y: (canvasRect.height - height * newZoom) / 2 - bounds.minY * newZoom
+        }
+      });
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1) {
+    if (mode === 'pan' || e.button === 1 || (e.button === 0 && e.altKey)) {
       isPanning.current = true;
       lastMousePos.current = { x: e.clientX, y: e.clientY };
       e.currentTarget.style.cursor = 'grabbing';
@@ -109,330 +259,275 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
     }
   };
   
-  const handleMouseUp = (e: React.MouseEvent) => {
-    if (e.button === 1) {
-      isPanning.current = false;
-      if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
-    }
+  const handleMouseUp = () => {
+    isPanning.current = false;
+    if (canvasRef.current) canvasRef.current.style.cursor = mode === 'pan' ? 'grab' : 'default';
   };
 
+  // Gestion des connexions
   const handleAnchorClick = (elementId: string, anchor: 'top' | 'bottom' | 'left' | 'right') => {
     if (mode !== 'connect') return;
+    
     if (!connectingFrom) {
       setConnectingFrom({ elementId, anchor });
     } else {
+      if (connectingFrom.elementId === elementId) {
+        setConnectingFrom(null);
+        return;
+      }
+      
       const newConnection: VSMConnection = {
         id: `conn-${Date.now()}`,
         from: connectingFrom,
         to: { elementId, anchor },
-        type: 'information' // Default type
+        type: 'information',
+        data: {}
       };
+      
       setContent(c => ({ ...c, connections: [...c.connections, newConnection] }));
       setConnectingFrom(null);
       setMode('select');
     }
   };
 
+  // Export/Import
+  const exportVSM = () => {
+    const dataStr = JSON.stringify(content, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportName = `VSM_${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportName);
+    linkElement.click();
+  };
+
+  const importVSM = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target?.result as string);
+          setContent(imported);
+          zoomToFit();
+        } catch (error) {
+          alert('Erreur lors de l\'import du fichier');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      // Delete
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedItemId) {
+        e.preventDefault();
+        deleteElement(selectedItemId);
+      }
+      
+      // Duplicate
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd' && selectedItemId) {
+        e.preventDefault();
+        duplicateElement();
+      }
+      
+      // Copy/Paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedItemId) {
+        e.preventDefault();
+        const element = content.elements.find(el => el.id === selectedItemId);
+        if (element) setCopiedElement(element);
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && copiedElement) {
+        e.preventDefault();
+        const newElement: VSMElement = {
+          ...copiedElement,
+          id: `el-${Date.now()}`,
+          x: copiedElement.x + 20,
+          y: copiedElement.y + 20
+        };
+        setContent(c => ({ ...c, elements: [...c.elements, newElement] }));
+        setSelectedItemId(newElement.id);
+      }
+      
+      // Modes
+      if (e.key === 'v') setMode('select');
+      if (e.key === 'c') setMode('connect');
+      if (e.key === 'h') setMode('pan');
+      
+      // Zoom
+      if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        resetView();
+      }
+      if (e.key === '=' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setViewState(vs => ({ ...vs, zoom: Math.min(3, vs.zoom * 1.1) }));
+      }
+      if (e.key === '-' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setViewState(vs => ({ ...vs, zoom: Math.max(0.2, vs.zoom / 1.1) }));
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedItemId, copiedElement, content.elements]);
+
   const selectedElement = useMemo(() => content.elements.find(el => el.id === selectedItemId), [content.elements, selectedItemId]);
-  const updateGlobal = (key: keyof VSMContent['global'], value: any) => setContent(c => ({...c, global: {...c.global, [key]: value}}));
+  const selectedConnection = useMemo(() => content.connections.find(c => c.id === selectedItemId), [content.connections, selectedItemId]);
 
   return (
-    <div className="fixed inset-0 bg-gray-800 flex flex-col z-50">
+    <div className="fixed inset-0 bg-gray-900 flex flex-col z-50">
+      {/* Header */}
       <header className="flex items-center justify-between p-3 border-b bg-white flex-shrink-0 z-20 shadow-md">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
             <Workflow className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-xl font-bold text-gray-800">Éditeur VSM Professionnel</h1>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Éditeur VSM Professionnel</h1>
+            <p className="text-xs text-gray-500">Value Stream Mapping - {content.global.title || 'Sans titre'}</p>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
-            <Toolbar onAddElement={addElement} mode={mode} setMode={setMode} />
-            <button onClick={onClose} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full">
-                <X className="w-5 h-5 text-gray-600" />
-            </button>
+          <Toolbar 
+            onAddElement={addElement} 
+            mode={mode} 
+            setMode={setMode}
+            onExport={exportVSM}
+            onImport={importVSM}
+            onResetView={resetView}
+            onZoomToFit={zoomToFit}
+            zoom={viewState.zoom}
+            showGrid={showGrid}
+            setShowGrid={setShowGrid}
+            showMetrics={showMetrics}
+            setShowMetrics={setShowMetrics}
+          />
+          <button onClick={() => setShowHelp(true)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Aide">
+            <HelpCircle className="w-5 h-5 text-gray-600" />
+          </button>
+          <button onClick={onClose} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg" title="Fermer">
+            <X className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
       </header>
       
+      {/* Main Canvas */}
       <main className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-hidden relative bg-gray-200" ref={canvasRef} onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} style={{ cursor: 'grab' }}>
-          <div className="absolute top-0 left-0" style={{ transform: `translate(${viewState.pan.x}px, ${viewState.pan.y}px) scale(${viewState.zoom})`, transformOrigin: '0 0' }}>
-            <svg className="absolute top-0 left-0 w-[5000px] h-[3000px] pointer-events-none" style={{transform: 'translate(-2500px, -1500px)', top: '50%', left: '50%'}}>
-              {content.connections.map(conn => <VSMLine key={conn.id} connection={conn} elements={content.elements} />)}
+        <div 
+          className="flex-1 overflow-hidden relative bg-gray-100" 
+          ref={canvasRef} 
+          onWheel={handleWheel} 
+          onMouseDown={handleMouseDown} 
+          onMouseMove={handleMouseMove} 
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          style={{ cursor: mode === 'pan' ? 'grab' : mode === 'connect' ? 'crosshair' : 'default' }}
+        >
+          {/* Grid Background */}
+          {showGrid && (
+            <div 
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                backgroundImage: `linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)`,
+                backgroundSize: `${50 * viewState.zoom}px ${50 * viewState.zoom}px`,
+                backgroundPosition: `${viewState.pan.x}px ${viewState.pan.y}px`
+              }}
+            />
+          )}
+          
+          {/* Canvas Content */}
+          <div 
+            className="absolute top-0 left-0" 
+            style={{ 
+              transform: `translate(${viewState.pan.x}px, ${viewState.pan.y}px) scale(${viewState.zoom})`, 
+              transformOrigin: '0 0' 
+            }}
+          >
+            {/* Connections */}
+            <svg className="absolute top-0 left-0 w-[10000px] h-[10000px] pointer-events-none" style={{ overflow: 'visible' }}>
+              {connectingFrom && (
+                <TempConnectionLine 
+                  from={connectingFrom} 
+                  elements={content.elements} 
+                  mousePos={lastMousePos.current}
+                  zoom={viewState.zoom}
+                  pan={viewState.pan}
+                />
+              )}
+              {content.connections.map(conn => (
+                <VSMConnectionLine 
+                  key={conn.id} 
+                  connection={conn} 
+                  elements={content.elements}
+                  isSelected={selectedItemId === conn.id}
+                  onSelect={() => setSelectedItemId(conn.id)}
+                  onDelete={() => deleteConnection(conn.id)}
+                />
+              ))}
             </svg>
-            {content.elements.map(el => <VSMNode key={el.id} element={el} isSelected={selectedItemId === el.id} onSelect={setSelectedItemId} onUpdate={updateElement} zoom={viewState.zoom} onAnchorClick={handleAnchorClick} isConnecting={mode === 'connect'} />)}
+            
+            {/* Elements */}
+            {content.elements.map(el => (
+              <VSMNode 
+                key={el.id} 
+                element={el} 
+                isSelected={selectedItemId === el.id} 
+                onSelect={setSelectedItemId} 
+                onUpdate={updateElement} 
+                zoom={viewState.zoom} 
+                onAnchorClick={handleAnchorClick} 
+                isConnecting={mode === 'connect'}
+                connectingFrom={connectingFrom}
+              />
+            ))}
+          </div>
+          
+          {/* Zoom indicator */}
+          <div className="absolute bottom-4 left-4 bg-white px-3 py-1 rounded-lg shadow-md text-sm font-medium">
+            Zoom: {Math.round(viewState.zoom * 100)}%
+          </div>
+          
+          {/* Mode indicator */}
+          <div className="absolute top-4 left-4 bg-white px-3 py-1 rounded-lg shadow-md text-sm">
+            Mode: <span className="font-medium">
+              {mode === 'select' && 'Sélection'}
+              {mode === 'connect' && 'Connexion'}
+              {mode === 'pan' && 'Déplacement'}
+            </span>
           </div>
         </div>
 
-        <aside className="w-80 bg-white border-l p-4 flex flex-col z-10">
-          <DetailsPanel element={selectedElement} onUpdate={updateElement} onDelete={deleteElement} globalData={content.global} onUpdateGlobal={updateGlobal} />
+        {/* Right Panel */}
+        <aside className="w-96 bg-white border-l flex flex-col z-10">
+          <DetailsPanel 
+            element={selectedElement}
+            connection={selectedConnection}
+            onUpdateElement={updateElement}
+            onUpdateConnection={(id, updates) => {
+              setContent(c => ({
+                ...c,
+                connections: c.connections.map(conn => 
+                  conn.id === id ? { ...conn, ...updates } : conn
+                )
+              }));
+            }}
+            onDelete={(id) => {
+              if (selectedElement) deleteElement(id);
+              if (selectedConnection) deleteConnection(id);
+            }}
+            globalData={content.global}
+            onUpdateGlobal={(updates) => {
+              setContent(c => ({ ...c, global: { ...c.global, ...updates } }));
+            }}
+            metrics={metrics}
+            showMetrics={showMetrics}
+          />
         </aside>
-      </main>
-
-      <footer className="bg-white border-t p-3 flex-shrink-0 z-20 shadow-inner">
-        <Timeline content={content} />
-      </footer>
-    </div>
-  );
-};
-
-// --- SUB-COMPONENTS ---
-const Toolbar: React.FC<{ onAddElement: (type: VSMElementType) => void, mode: string, setMode: (m: 'select' | 'connect') => void }> = ({ onAddElement, mode, setMode }) => {
-  const elementTypes: VSMElementType[] = ['Fournisseur', 'Client', 'Processus', 'Stock', 'ControleProduction', 'Livraison', 'Texte', 'Kaizen'];
-  return (
-    <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg">
-      <button onClick={() => setMode('select')} className={`p-2 rounded ${mode === 'select' ? 'bg-emerald-500 text-white' : 'hover:bg-gray-200'}`} title="Sélectionner/Déplacer"><MousePointer size={18} /></button>
-      <button onClick={() => setMode('connect')} className={`p-2 rounded ${mode === 'connect' ? 'bg-emerald-500 text-white' : 'hover:bg-gray-200'}`} title="Connecter"><Link2 size={18} /></button>
-      <div className="w-px h-6 bg-gray-300 mx-1"></div>
-      {elementTypes.map(type => (
-        <button key={type} onClick={() => onAddElement(type)} className="p-2 hover:bg-gray-200 rounded" title={`Ajouter ${type}`}>
-          {type === 'Fournisseur' && <Truck size={18} />}
-          {type === 'Client' && <User size={18} />}
-          {type === 'Processus' && <Square size={18} />}
-          {type === 'Stock' && <Triangle size={18} />}
-          {type === 'ControleProduction' && <Workflow size={18} />}
-          {type === 'Livraison' && <ArrowRight size={18} />}
-          {type === 'Texte' && <Type size={18} />}
-          {type === 'Kaizen' && <Zap size={18} />}
-        </button>
-      ))}
-    </div>
-  );
-};
-
-const VSMNode: React.FC<{ element: VSMElement; isSelected: boolean; onSelect: (id: string) => void; onUpdate: (id: string, newEl: VSMElement) => void; zoom: number; onAnchorClick: (id: string, anchor: 'top'|'bottom'|'left'|'right') => void; isConnecting: boolean; }> = ({ element, isSelected, onSelect, onUpdate, zoom, onAnchorClick, isConnecting }) => {
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onSelect(element.id);
-    const startX = e.clientX / zoom;
-    const startY = e.clientY / zoom;
-    const { x: startElX, y: startElY } = element;
-
-    const handleMouseMove = (me: MouseEvent) => {
-      const dx = me.clientX / zoom - startX;
-      const dy = me.clientY / zoom - startY;
-      const newX = Math.round((startElX + dx) / 10) * 10;
-      const newY = Math.round((startElY + dy) / 10) * 10;
-      onUpdate(element.id, { ...element, x: newX, y: newY });
-    };
-
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-  
-  const nodeContent = useMemo(() => {
-    switch (element.type) {
-      case 'Processus': return <ProcessNode data={element.data} />;
-      case 'Stock': return <StockNode data={element.data} />;
-      case 'Fournisseur':
-      case 'Client': return <ActorNode data={element.data} type={element.type} />;
-      case 'Livraison': return <TruckNode data={element.data} />;
-      case 'ControleProduction': return <ControlNode data={element.data} />;
-      case 'Texte': return <TextNode data={element.data} onUpdate={data => onUpdate(element.id, {...element, data})} />;
-      case 'Kaizen': return <KaizenNode data={element.data} />;
-      default: return <div>{element.data.nom || element.type}</div>;
-    }
-  }, [element, onUpdate]);
-  
-  const anchors = ['top', 'bottom', 'left', 'right'] as const;
-
-  return (
-    <div className={`absolute p-2 shadow-md cursor-move transition-all duration-100 group ${isSelected ? 'z-10' : 'z-0'}`}
-      style={{ left: element.x, top: element.y, width: element.width, height: element.height }}
-      onMouseDown={handleMouseDown}
-    >
-      <div className={`w-full h-full relative ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}`}>
-        {nodeContent}
-      </div>
-      {isConnecting && anchors.map(anchor => (
-        <div 
-          key={anchor}
-          className="absolute w-4 h-4 bg-cyan-400 border-2 border-white rounded-full cursor-crosshair hover:bg-cyan-600"
-          style={{
-            top: anchor === 'top' ? -8 : anchor === 'bottom' ? 'auto' : '50%',
-            bottom: anchor === 'bottom' ? -8 : 'auto',
-            left: anchor === 'left' ? -8 : anchor === 'right' ? 'auto' : '50%',
-            right: anchor === 'right' ? -8 : 'auto',
-            transform: 'translate(-50%, -50%)'
-          }}
-          onClick={(e) => { e.stopPropagation(); onAnchorClick(element.id, anchor); }}
-        />
-      ))}
-    </div>
-  );
-};
-// ... Node components
-const ProcessNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
-    <div className="w-full h-full bg-blue-100 border-2 border-blue-500 flex flex-col items-center justify-center p-1">
-        <h4 className="font-bold text-sm text-blue-800 mb-1">{data.nom}</h4>
-        <div className="grid grid-cols-2 gap-x-2 text-xs text-blue-700 w-full text-left px-2">
-            <span>TC: <strong>{data.tempsCycle || 0}s</strong></span>
-            <span>TCH: <strong>{data.tempsChangt || 0}s</strong></span>
-            <span>Disp: <strong>{data.tauxDispo || 100}%</strong></span>
-            <span>Rebut: <strong>{data.rebut || 0}%</strong></span>
-        </div>
-        <div className="absolute -bottom-4 bg-white border border-gray-400 rounded-full w-6 h-6 flex items-center justify-center">
-            <User size={14} />
-            <span className="absolute -right-3 font-bold text-xs">{data.nbOperateurs || 1}</span>
-        </div>
-    </div>
-);
-const StockNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-orange-100">
-        <svg viewBox="0 0 100 80" className="w-full h-full fill-current text-orange-500"><polygon points="50,0 100,80 0,80"/></svg>
-        <span className="absolute text-xs font-semibold text-orange-800">{data.quantite} jours</span>
-    </div>
-);
-const ActorNode: React.FC<{data: VSMElement['data'], type: 'Client' | 'Fournisseur'}> = ({data, type}) => (
-    <div className={`w-full h-full flex flex-col items-center justify-center p-2 border-2 ${type === 'Client' ? 'bg-green-100 border-green-600' : 'bg-purple-100 border-purple-600'}`}>
-        {type === 'Client' ? <User size={32} className="text-green-700"/> : <Truck size={32} className="text-purple-700"/>}
-        <h4 className="font-bold text-sm mt-2">{data.nom}</h4>
-        <p className="text-xs">{data.frequence}</p>
-    </div>
-);
-const TruckNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 border-2 border-gray-400 p-2">
-        <Truck size={32} className="text-gray-700"/>
-        <h4 className="font-bold text-sm mt-2">{data.nom}</h4>
-        <p className="text-xs">{data.frequence}</p>
-    </div>
-);
-const ControlNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 border-2 border-slate-500 p-2">
-        <Workflow size={32} className="text-slate-700"/>
-        <h4 className="font-bold text-sm mt-2">{data.nom}</h4>
-    </div>
-);
-const TextNode: React.FC<{data: VSMElement['data'], onUpdate: (data: VSMElement['data']) => void}> = ({data, onUpdate}) => (
-    <textarea className="w-full h-full bg-transparent border-none outline-none resize-none text-sm p-1" value={data.contenu || ''} onChange={(e) => onUpdate({ ...data, contenu: e.target.value })} />
-);
-const KaizenNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-yellow-100 border-2 border-yellow-500 p-1">
-        <Zap size={24} className="text-yellow-600" />
-        <p className="text-xs text-center font-semibold mt-1 text-yellow-800">{data.details}</p>
-    </div>
-);
-
-const DetailsPanel: React.FC<{ element?: VSMElement; onUpdate: (id: string, newEl: VSMElement) => void; onDelete: (id: string) => void; globalData: VSMContent['global']; onUpdateGlobal: (key: keyof VSMContent['global'], value: any) => void; }> = ({ element, onUpdate, onDelete, globalData, onUpdateGlobal }) => {
-  if (!element) return (
-    <>
-      <h3 className="font-bold text-lg text-gray-800 mb-4">Paramètres Globaux</h3>
-      <div className="space-y-3">
-        <Input label="Demande Client (pièces/mois)" type="number" value={globalData.demandeClient} onChange={v => onUpdateGlobal('demandeClient', +v)} />
-        <Input label="Temps d'ouverture (s/jour)" type="number" value={globalData.tempsOuverture} onChange={v => onUpdateGlobal('tempsOuverture', +v)} />
-      </div>
-    </>
-  );
-
-  const handleDataChange = (field: keyof VSMElement['data'], value: any) => onUpdate(element.id, { ...element, data: { ...element.data, [field]: value } });
-  
-  return (
-    <div className="flex-1 overflow-y-auto pr-2">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-lg text-gray-800">{element.data.nom || element.type}</h3>
-            <button onClick={() => onDelete(element.id)} className="p-1 hover:bg-red-100 rounded"><Trash2 size={16} className="text-red-500" /></button>
-        </div>
-        <div className="space-y-3">
-          <Input label="Nom" value={element.data.nom || ''} onChange={v => handleDataChange('nom', v)} />
-          {element.type === 'Processus' && <>
-            <Input label="Temps de Cycle (s)" type="number" value={element.data.tempsCycle || 0} onChange={v => handleDataChange('tempsCycle', +v)} />
-            <Input label="Temps de Changement (s)" type="number" value={element.data.tempsChangt || 0} onChange={v => handleDataChange('tempsChangt', +v)} />
-            <Input label="Disponibilité (%)" type="number" value={element.data.tauxDispo || 100} onChange={v => handleDataChange('tauxDispo', +v)} />
-            <Input label="Rebut (%)" type="number" value={element.data.rebut || 0} onChange={v => handleDataChange('rebut', +v)} />
-            <Input label="Opérateurs" type="number" value={element.data.nbOperateurs || 1} onChange={v => handleDataChange('nbOperateurs', +v)} />
-          </>}
-          {element.type === 'Stock' && <Input label="Quantité (jours)" type="number" value={element.data.quantite || 0} onChange={v => handleDataChange('quantite', +v)} />}
-          {(element.type === 'Client' || element.type === 'Fournisseur' || element.type === 'Livraison') && <Input label="Fréquence" value={element.data.frequence || ''} onChange={v => handleDataChange('frequence', v)} />}
-          {element.type === 'Kaizen' && <Input label="Détails" value={element.data.details || ''} onChange={v => handleDataChange('details', v)} />}
-        </div>
-    </div>
-  );
-};
-const Input: React.FC<{label: string, value: string | number, onChange: (val: string | number) => void, type?: string}> = ({label, value, onChange, type="text"}) => (
-    <div>
-        <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
-        <input type={type} value={value} onChange={e => onChange(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" />
-    </div>
-);
-
-const VSMLine: React.FC<{connection: VSMConnection, elements: VSMElement[]}> = ({connection, elements}) => {
-    const fromEl = elements.find(el => el.id === connection.from.elementId);
-    const toEl = elements.find(el => el.id === connection.to.elementId);
-
-    if (!fromEl || !toEl) return null;
-    
-    const getAnchorPoint = (el: VSMElement, anchor: 'top'|'bottom'|'left'|'right') => {
-        switch(anchor) {
-            case 'top': return { x: el.x + el.width / 2, y: el.y };
-            case 'bottom': return { x: el.x + el.width / 2, y: el.y + el.height };
-            case 'left': return { x: el.x, y: el.y + el.height / 2 };
-            case 'right': return { x: el.x + el.width, y: el.y + el.height / 2 };
-        }
-    }
-    
-    const p1 = getAnchorPoint(fromEl, connection.from.anchor);
-    const p2 = getAnchorPoint(toEl, connection.to.anchor);
-    
-    const isInfo = connection.type === 'information';
-    const isPushed = connection.data?.arrowType === 'pousse';
-
-    const pathData = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
-
-    return (
-        <g>
-            <defs>
-                <marker id="arrow-info" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" /></marker>
-                <marker id="arrow-pousse" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><circle cx="5" cy="5" r="4" stroke="#333" strokeWidth="1.5" fill="white" /></marker>
-                <marker id="arrow-simple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333" /></marker>
-            </defs>
-            <path d={pathData} stroke={isInfo ? "#475569" : "#333"} strokeWidth="2" strokeDasharray={isInfo ? "5,5" : "none"} markerEnd={isInfo ? "url(#arrow-info)" : (isPushed ? "url(#arrow-pousse)" : "url(#arrow-simple)")} fill="none" />
-        </g>
-    )
-}
-
-const Timeline: React.FC<{content: VSMContent}> = ({content}) => {
-    const timelineItems = useMemo(() => {
-        return content.elements
-            .filter(el => el.type === 'Processus' || el.type === 'Stock')
-            .sort((a, b) => a.x - b.x);
-    }, [content.elements]);
-
-    const unit = content.global.uniteTemps;
-    const multiplier = unitMultipliers[unit];
-
-    let cumulativeTime = 0;
-    const totalVA = timelineItems.filter(i => i.type === 'Processus').reduce((sum, el) => sum + (el.data.tempsCycle || 0), 0);
-    const totalNVA = timelineItems.filter(i => i.type === 'Stock').reduce((sum, el) => sum + ((el.data.quantite || 0) * 86400), 0);
-    const totalLeadTime = totalVA + totalNVA;
-
-    return (
-        <div>
-            <div className="w-full h-16 flex border-b-2 border-gray-400">
-                {timelineItems.map((item) => {
-                    const isProcess = item.type === 'Processus';
-                    const time = isProcess ? (item.data.tempsCycle || 0) : ((item.data.quantite || 0) * 86400);
-                    const width = (time / totalLeadTime) * 100;
-                    cumulativeTime += time;
-                    return (
-                        <div key={item.id} className="h-full flex flex-col justify-end text-center relative" style={{width: `${width}%`}}>
-                            <div className={`w-full border-r-2 border-gray-400 ${isProcess ? 'h-full bg-blue-200' : 'h-1/2 bg-transparent'}`}>
-                                <span className="text-xs font-bold">{isProcess ? "VA" : "NVA"}</span><br/>
-                                <span className="text-xs">{(time / multiplier).toFixed(1)} {unit.substring(0,1)}</span>
-                            </div>
-                            <div className="text-xs font-semibold absolute -bottom-4 right-0 transform translate-x-1/2">{ (cumulativeTime / multiplier).toFixed(1) }</div>
-                        </div>
-                    )
-                })}
-            </div>
-            <div className="flex justify-between mt-5 text-xs font-medium">
-                <div className="text-blue-600">Temps VA: {(totalVA/multiplier).toFixed(2)} {unit}</div>
-                <div className="text-gray-700 font-bold">Temps de Défilement Total: {(totalLeadTime / 86400).toFixed(2)} jours</div>
-                <div className="text-red-600">Temps NVA: {(totalNVA / 86400).toFixed(2)} jours</div>
-            </div>
-        </div>
-    );
-};
