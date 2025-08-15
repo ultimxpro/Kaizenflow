@@ -75,88 +75,70 @@ export interface ActionAssignee {
   user: string; // User ID
 }
 
-// ... (le reste de vos types ToolData, VSMElement, etc. reste inchangé)
-export interface ToolData {
-  '5Pourquoi': {
-    problem: string;
-    why1: string;
-    why2: string;
-    why3: string;
-    why4: string;
-    why5: string;
-    rootCause: string;
-  };
-  'Image': {
-    url: string;
-    description: string;
-  };
-  '4M': {
-    machine: Array<{ id: string; text: string; }>;
-    methode: Array<{ id: string; text: string; }>;
-    materiel: Array<{ id: string; text: string; }>;
-    mainOeuvre: Array<{ id: string; text: string; }>;
-  };
-  'OPL': {
-    titre: string;
-    situationAvant: {
-      description: string;
-      imageUrl: string;
-    };
-    situationApres: {
-      description: string;
-      imageUrl: string;
-    };
-    pointsCles: string;
-  };
-  '5S': {
-    seiri: Array<{ id: string; text: string; checked: boolean; }>;
-    seiton: Array<{ id: string; text: string; checked: boolean; }>;
-    seiso: Array<{ id: string; text: string; checked: boolean; }>;
-    seiketsu: Array<{ id: string; text: string; checked: boolean; }>;
-    shitsuke: Array<{ id: string; text: string; checked: boolean; }>;
-  };
-  'VSM': {
-    projectId: string;
-  };
-  'Iframe': {
-    url: string;
-  };
-  'Croquis': {
-    sketches: Array<{
-      id: string;
-      name: string;
-      imageData: string;
-      createdAt: Date;
-    }>;
-    activeSketchId?: string;
-  };
+// =======================================================================
+// === NOUVELLES STRUCTURES DE DONNÉES POUR LE MODULE VSM COMPLET ===
+// =======================================================================
+
+export type VSMElementType =
+  | 'Client'
+  | 'Fournisseur'
+  | 'Processus'
+  | 'Stock'
+  | 'ControleProduction'
+  | 'Livraison'
+  | 'Texte'
+  | 'Supermarche'
+  | 'KanbanPoste'
+  | 'KanbanRetrait'
+  | 'FIFO'
+  | 'GoSee';
+
+export type VSMConnectionArrow = 'pousse' | 'retrait' | 'supermarche_client';
+export type VSMInfoFlowType = 'manuel' | 'electronique';
+
+export interface VSMGlobalData {
+  demandeClient: number; // pièces par mois
+  tempsOuverture: number; // secondes par jour
 }
 
 export interface VSMElement {
   id: string;
-  project: string;
-  elementType: 'Processus' | 'Stock' | 'Livraison' | 'Client' | 'Fournisseur';
-  positionX: number;
-  positionY: number;
-  nom: string;
-  tempsCycle: number;
-  tempsChangt: number;
-  tauxDispo: number;
-  nbOperateurs: number;
+  type: VSMElementType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  data: {
+    nom?: string;
+    tempsCycle?: number;      // (s) Processus
+    tempsChangt?: number;     // (s) Processus
+    tauxDispo?: number;       // (%) Processus
+    nbOperateurs?: number;    // Processus
+    rebut?: number;           // (%) Processus
+    quantite?: number;        // Stock
+    tempsAttente?: number;    // (s) Stock
+    frequence?: string;       // Livraison, Client, Fournisseur
+    details?: string;         // ControleProduction, Texte
+    contenu?: string;         // Texte
+  };
 }
 
 export interface VSMConnection {
   id: string;
-  project: string;
-  elementSource: string;
-  elementCible: string;
-  typeFleche: 'Simple' | 'Double';
+  from: string;
+  to: string;
+  type: 'matiere' | 'information';
+  data?: {
+    // Matière
+    arrowType?: VSMConnectionArrow;
+    // Information
+    infoType?: VSMInfoFlowType;
+    details?: string;
+  };
 }
 
-export interface VSMTextBox {
-  id: string;
-  project: string;
-  contenu: string;
-  positionX: number;
-  positionY: number;
+export interface VSMContent {
+  elements: VSMElement[];
+  connections: VSMConnection[];
+  global: VSMGlobalData;
 }
