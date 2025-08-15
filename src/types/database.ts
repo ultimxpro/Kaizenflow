@@ -17,11 +17,12 @@ export interface Project {
   id: string;
   pilote: string;
   titre: string;
-  what: string; // anciennement 'Quoi ?'
+  what?: string;
+  theme?: string;
   dateCreation: Date;
-  dateProbleme: Date; // NOUVEAU CHAMP
+  dateProbleme?: Date;
   kaizenNumber: string;
-  location: string; // anciennement 'Où ?'
+  location?: string;
   cost: number;
   benefit: number;
   statut: 'En cours' | 'Terminé';
@@ -53,23 +54,24 @@ export interface ModuleAssignee {
 }
 
 // --- MODIFICATION MAJEURE ICI ---
-// Unification du type Action pour inclure start_date et due_date
+// Standardisation du type Action
 export interface Action {
   id: string;
-  titre: string;
+  title: string;
   description?: string;
-  typeAction: 'Sécurisation' | 'Simple' | 'Poka-Yoke';
-  start_date: string; // Ajouté pour le Gantt
-  due_date: string; // Remplacement de dateEcheance
-  statut: 'À Faire' | 'En Cours' | 'Fait';
+  type: 'simple' | 'securisation' | 'poka-yoke'; // Standardisé sur 'type'
+  start_date: string; 
+  due_date: string;
+  status: 'À faire' | 'Fait'; // Simplifié pour le Kanban
   effort: number; // 1-10
   gain: number; // 1-10
   project: string; // Project ID
   createdBy: string; // User ID
-  assignee_ids: string[]; // Ajouté pour la cohérence
-  leader_id?: string; // Ajouté pour la cohérence
+  assignee_ids: string[];
+  leader_id?: string;
 }
 // --- FIN DE LA MODIFICATION MAJEURE ---
+
 
 export interface ActionAssignee {
   id: string;
