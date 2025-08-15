@@ -569,7 +569,7 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
         mode: 'move' | 'resize-right' | 'resize-left';
         startX: number;
         originalStartDate: Date;
-        originalEndDate: Date; // Ajout de la date de fin originale
+        originalEndDate: Date;
     } | null>(null);
 
     const validActions = useMemo(() => actions
@@ -645,13 +645,6 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
         const diffMs = date.getTime() - ganttStartDate.getTime();
         const diffDays = diffMs / (1000 * 60 * 60 * 24);
         return diffDays * dayWidth;
-    }, [ganttStartDate, dayWidth]);
-    
-    const getDateFromPosition = useCallback((position: number) => {
-        const diffDays = position / dayWidth;
-        const newDate = new Date(ganttStartDate);
-        newDate.setDate(newDate.getDate() + diffDays);
-        return newDate;
     }, [ganttStartDate, dayWidth]);
 
     const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right' | 'resize-left') => {
@@ -774,7 +767,16 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                             const startDate = new Date(action.start_date + 'T00:00:00');
                             const endDate = new Date(action.due_date + 'T00:00:00');
                             const left = getPositionFromDate(startDate);
-                            const width = getPositionFromDate(new Date(endDate.getTime() + 86400000)) - left;
+
+                            // --- MODIFICATION PRINCIPALE ICI ---
+                            // On calcule la durée en millisecondes entre la fin et le début.
+                            const durationMs = endDate.getTime() - startDate.getTime();
+                            // On convertit en jours. On ajoute 1 car les dates sont inclusives (une tâche du 5 au 5 dure 1 jour).
+                            // On utilise Math.round pour éviter les problèmes de précision.
+                            const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24)) + 1;
+                            // La largeur est simplement la durée en jours multipliée par la largeur d'un jour.
+                            const width = durationDays * dayWidth;
+                            // --- FIN DE LA MODIFICATION ---
 
                             const config = actionTypeConfig[action.type];
                             const isCompleted = action.status === 'Fait';
@@ -787,13 +789,11 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                                             onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
                                             onDoubleClick={() => onCardClick(action)}
                                         >
-                                            {/* Handle de redimensionnement gauche */}
                                             <div
                                                 className="absolute left-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-l-md"
                                                 onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-left')}
                                             />
                                             <p className="text-xs font-semibold text-white truncate">{action.title}</p>
-                                            {/* Handle de redimensionnement droit */}
                                             <div
                                                 className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
                                                 onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
