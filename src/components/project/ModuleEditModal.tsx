@@ -25,15 +25,15 @@ export const ModuleEditModal: React.FC<ModuleEditModalProps> = ({ module, onClos
         return <IshikawaEditor module={module} onClose={onClose} />;
       // MODIFICATION ICI : Le cas pour '5W1H' a été supprimé
       case 'OPL':
-        return <OplEditor module={module} onClose={onClose}/>;
+        return <OplEditor module={module} />;
       case '5S':
-        return <FiveSEditor module={module} onClose={onClose}/>;
+        return <FiveSEditor module={module} />;
       case 'VSM':
         return <VSMEditor module={module} onClose={onClose}/>;
       case 'Iframe':
-        return <IframeEditor module={module} onClose={onClose}/>;
+        return <IframeEditor module={module} />;
       case 'Croquis':
-        return <CroquisEditor module={module} onClose={onClose}/>;
+        return <CroquisEditor module={module} />;
       case 'PlanActions':
         return <PlanActionsEditor module={module} onClose={onClose}/>;
       default:
@@ -52,24 +52,28 @@ export const ModuleEditModal: React.FC<ModuleEditModalProps> = ({ module, onClos
     }
   };
 
+  const isVsmEditor = module.toolType === 'VSM';
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Édition du module
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+      <div className={`bg-white rounded-lg shadow-xl w-full flex flex-col ${isVsmEditor ? 'max-w-7xl h-5/6' : 'max-w-6xl h-5/6'}`}>
+        {/* Header (masqué pour l'éditeur VSM qui a son propre header) */}
+        {!isVsmEditor && (
+            <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
+                <h2 className="text-xl font-semibold text-gray-900">
+                    Édition du module: {module.toolType}
+                </h2>
+                <button
+                    onClick={onClose}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                    <X className="w-6 h-6" />
+                </button>
+            </div>
+        )}
 
         {/* Content */}
-        <div className="flex-1 p-6 overflow-hidden">
+        <div className={`flex-1 overflow-hidden ${isVsmEditor ? '' : 'p-6'}`}>
           {renderEditor()}
         </div>
       </div>
