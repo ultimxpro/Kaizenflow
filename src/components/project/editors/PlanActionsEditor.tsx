@@ -566,10 +566,10 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
 
     const [dragState, setDragState] = useState<{
         actionId: string;
-        mode: 'move' | 'resize-right';
+        mode: 'move' | 'resize-right' | 'resize-left';
         startX: number;
         originalStartDate: Date;
-        originalDurationMs: number;
+        originalEndDate: Date; // Ajout de la date de fin originale
     } | null>(null);
 
     const validActions = useMemo(() => actions
@@ -654,19 +654,18 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
         return newDate;
     }, [ganttStartDate, dayWidth]);
 
-    const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right') => {
+    const handleMouseDown = (e: React.MouseEvent, actionId: string, mode: 'move' | 'resize-right' | 'resize-left') => {
         e.preventDefault();
         e.stopPropagation();
         const action = validActions.find(a => a.id === actionId);
         if (!action) return;
 
-        const originalStartDate = new Date(action.start_date + 'T00:00:00');
-        const originalEndDate = new Date(action.due_date + 'T00:00:00');
-        const originalDurationMs = originalEndDate.getTime() - originalStartDate.getTime();
-
         setDragState({
-            actionId, mode, startX: e.clientX,
-            originalStartDate, originalDurationMs
+            actionId,
+            mode,
+            startX: e.clientX,
+            originalStartDate: new Date(action.start_date + 'T00:00:00'),
+            originalEndDate: new Date(action.due_date + 'T00:00:00'),
         });
     };
 
@@ -675,22 +674,23 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
 
         const handleMouseMove = (e: MouseEvent) => {
             const deltaX = e.clientX - dragState.startX;
-            const deltaDays = deltaX / dayWidth;
+            const deltaDays = Math.round(deltaX / dayWidth);
 
-            let newStartDate: Date;
-            let newEndDate: Date;
+            let newStartDate = new Date(dragState.originalStartDate);
+            let newEndDate = new Date(dragState.originalEndDate);
 
             if (dragState.mode === 'move') {
-                newStartDate = new Date(dragState.originalStartDate);
                 newStartDate.setDate(newStartDate.getDate() + deltaDays);
-                newEndDate = new Date(newStartDate.getTime() + dragState.originalDurationMs);
-            } else { // resize-right
-                newStartDate = new Date(dragState.originalStartDate);
-                const originalEndDate = new Date(dragState.originalStartDate.getTime() + dragState.originalDurationMs);
-                newEndDate = new Date(originalEndDate);
+                newEndDate.setDate(newEndDate.getDate() + deltaDays);
+            } else if (dragState.mode === 'resize-right') {
                 newEndDate.setDate(newEndDate.getDate() + deltaDays);
                 if (newEndDate < newStartDate) {
                     newEndDate = newStartDate;
+                }
+            } else { // resize-left
+                newStartDate.setDate(newStartDate.getDate() + deltaDays);
+                if (newStartDate > newEndDate) {
+                    newStartDate = newEndDate;
                 }
             }
 
@@ -716,7 +716,7 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [dragState, actions, dayWidth, onUpdateAction, saveActions, getDateFromPosition]);
+    }, [dragState, actions, dayWidth, onUpdateAction, saveActions]);
 
     if (validActions.length === 0) {
         return (
@@ -758,9 +758,9 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                         {validActions.map(action => (
                             <div key={action.id} className="h-12 flex items-center px-4 border-b border-gray-100 hover:bg-gray-50">
                                  <div className="flex items-center gap-2 w-full">
-                                    <AssigneeAvatars assignee_ids={action.assignee_ids} users={users} />
-                                    <p className="text-sm font-medium text-gray-800 truncate" title={action.title}>{action.title}</p>
-                                </div>
+                                     <AssigneeAvatars assignee_ids={action.assignee_ids} users={users} />
+                                     <p className="text-sm font-medium text-gray-800 truncate" title={action.title}>{action.title}</p>
+                                 </div>
                             </div>
                         ))}
                     </div>
@@ -783,11 +783,17 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                                 <div key={action.id} className="absolute h-12 flex items-center" style={{ top: `${index * 48}px`, left: `${left}px`, width: `${width}px`, zIndex: 10 }}>
                                     <Tooltip content={action.title}>
                                         <div
-                                            className={`w-full h-8 ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative transition-all group-hover:brightness-110 ${isCompleted ? 'opacity-60' : ''}`}
+                                            className={`w-full h-8 ${config.barBg} rounded shadow-sm cursor-move flex items-center justify-between px-2 relative group transition-all group-hover:brightness-110 ${isCompleted ? 'opacity-60' : ''}`}
                                             onMouseDown={(e) => handleMouseDown(e, action.id, 'move')}
                                             onDoubleClick={() => onCardClick(action)}
                                         >
+                                            {/* Handle de redimensionnement gauche */}
+                                            <div
+                                                className="absolute left-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-l-md"
+                                                onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-left')}
+                                            />
                                             <p className="text-xs font-semibold text-white truncate">{action.title}</p>
+                                            {/* Handle de redimensionnement droit */}
                                             <div
                                                 className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-black bg-opacity-10 hover:bg-opacity-30 rounded-r-md"
                                                 onMouseDown={(e) => handleMouseDown(e, action.id, 'resize-right')}
@@ -800,10 +806,9 @@ const GanttView = ({ actions, users, onUpdateAction, saveActions, onCardClick, g
                     </div>
                 </div>
             </div>
-      </div>
+        </div>
     );
 };
-
 
 export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, onClose }) => {
     const { currentUser } = useAuth();
