@@ -20,7 +20,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       member.user === currentUser?.id && 
       member.roleInProject === 'Membre'
     );
-    return membership && project.pilote !== currentUser?.id;
+    return !!membership;
   });
 
   // Get actions assigned to current user
@@ -44,7 +44,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const isOverdue = (dateString: string) => {
     if (!dateString) return false;
-    return new Date(dateString) < new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(dateString) < today;
   };
 
   const handleLogout = () => {
@@ -131,7 +133,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                           {project.statut}
                         </span>
                       </div>
-                      <p className="text-gray-600 text-sm mb-2">{project.theme}</p>
+                      <p className="text-gray-600 text-sm mb-2">{project.what}</p>
                       <div className="flex items-center text-xs text-gray-500">
                         <Calendar className="w-3 h-3 mr-1" />
                         Créé le {formatDate(project.dateCreation)}
@@ -173,7 +175,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                           Membre
                         </span>
                       </div>
-                      <p className="text-gray-600 text-sm mb-2">{project.theme}</p>
+                      <p className="text-gray-600 text-sm mb-2">{project.what}</p>
                       <div className="flex items-center text-xs text-gray-500">
                         <Calendar className="w-3 h-3 mr-1" />
                         Créé le {formatDate(project.dateCreation)}
@@ -212,14 +214,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                       >
                         <h4 className="font-medium text-gray-900 text-sm mb-1">{action.titre}</h4>
                         <p className="text-xs text-gray-600 mb-2">Projet: {project?.titre}</p>
-                        {action.dateEcheance && (
+                        {action.due_date && (
                           <div className={`flex items-center text-xs ${
-                            isOverdue(action.dateEcheance) && action.statut !== 'Fait' 
+                            isOverdue(action.due_date) && action.statut !== 'Fait' 
                               ? 'text-red-600' 
                               : 'text-gray-500'
                           }`}>
                             <Calendar className="w-3 h-3 mr-1" />
-                            <span>Échéance: {formatActionDate(action.dateEcheance)}</span>
+                            <span>Échéance: {formatActionDate(action.due_date)}</span>
                           </div>
                         )}
                         <span className={`inline-block mt-2 px-2 py-1 rounded-full text-xs font-medium ${
@@ -264,14 +266,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                       >
                         <h4 className="font-medium text-gray-900 text-sm mb-1">{action.titre}</h4>
                         <p className="text-xs text-gray-600 mb-2">Projet: {project?.titre}</p>
-                        {action.dateEcheance && (
+                        {action.due_date && (
                           <div className={`flex items-center text-xs ${
-                            isOverdue(action.dateEcheance) && action.statut !== 'Fait' 
+                            isOverdue(action.due_date) && action.statut !== 'Fait' 
                               ? 'text-red-600' 
                               : 'text-gray-500'
                           }`}>
                             <Calendar className="w-3 h-3 mr-1" />
-                            <span>Échéance: {formatActionDate(action.dateEcheance)}</span>
+                            <span>Échéance: {formatActionDate(action.due_date)}</span>
                           </div>
                         )}
                         <span className={`inline-block mt-2 px-2 py-1 rounded-full text-xs font-medium ${
