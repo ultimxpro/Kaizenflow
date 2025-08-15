@@ -86,19 +86,15 @@ export type VSMElementType =
   | 'Stock'
   | 'ControleProduction'
   | 'Livraison'
-  | 'Texte'
-  | 'Supermarche'
-  | 'KanbanPoste'
-  | 'KanbanRetrait'
-  | 'FIFO'
-  | 'GoSee';
+  | 'Texte';
 
-export type VSMConnectionArrow = 'pousse' | 'retrait' | 'supermarche_client';
+export type VSMConnectionArrow = 'pousse' | 'retrait';
 export type VSMInfoFlowType = 'manuel' | 'electronique';
 
 export interface VSMGlobalData {
   demandeClient: number; // pièces par mois
   tempsOuverture: number; // secondes par jour
+  uniteTemps: 'secondes' | 'minutes' | 'heures' | 'jours';
 }
 
 export interface VSMElement {
@@ -115,8 +111,7 @@ export interface VSMElement {
     tauxDispo?: number;       // (%) Processus
     nbOperateurs?: number;    // Processus
     rebut?: number;           // (%) Processus
-    quantite?: number;        // Stock
-    tempsAttente?: number;    // (s) Stock
+    quantite?: number;        // Stock (en jours)
     frequence?: string;       // Livraison, Client, Fournisseur
     details?: string;         // ControleProduction, Texte
     contenu?: string;         // Texte
@@ -129,9 +124,7 @@ export interface VSMConnection {
   to: string;
   type: 'matiere' | 'information';
   data?: {
-    // Matière
     arrowType?: VSMConnectionArrow;
-    // Information
     infoType?: VSMInfoFlowType;
     details?: string;
   };
