@@ -986,14 +986,9 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
                     ? { ...action, ...updates }
                     : action
             );
-            
-            // On met à jour la base de données ici, avec la liste fraîchement mise à jour
-            updateA3Module(module.id, { content: { ...module.content, actions: updatedActions } });
-            
-            // On retourne la nouvelle liste pour que React mette à jour l'état
             return updatedActions;
         });
-    }, [module.id, module.content, updateA3Module]); // Les dépendances sont stables !
+    }, []);
     
     const handleSetActions = useCallback((updatedActions: Action[], changedItem: Action) => {
         saveActionsToDb(updatedActions);
@@ -1043,10 +1038,10 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
                                 {view === 'home' && <HomeView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'kanban' && <KanbanByPersonView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
                                 {view === 'matrix' && <MatrixView actions={actions} setActions={handleSetActions} users={currentProjectMembers} onCardClick={openActionModal} />}
-                                {view === 'gantt' && <GanttView 
-                                    actions={actions} 
-                                    users={currentProjectMembers} 
-                                    onUpdateAction={handleUpdateAction} 
+                                {view === 'gantt' && <GanttView
+                                    actions={actions}
+                                    users={currentProjectMembers}
+                                    onUpdateAction={handleUpdateAction}
                                     onCardClick={openActionModal}
                                     ganttScale={ganttScale}
                                     setGanttScale={setGanttScale}
@@ -1063,7 +1058,7 @@ export const PlanActionsEditor: React.FC<PlanActionsEditorProps> = ({ module, on
                     action={editingAction}
                     projectMembers={currentProjectMembers}
                 />}
-                
+
                 {showHelp && (
                     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]">
                         <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
