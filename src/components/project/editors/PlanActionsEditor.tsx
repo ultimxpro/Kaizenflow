@@ -568,7 +568,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         startX: number;
         originalStartDate: Date;
         originalEndDate: Date;
-        scale: 'day' | 'week' | 'month';
+        originalDurationMs: number;
     } | null>(null);
 
     const validActions = useMemo(() => actions
@@ -627,38 +627,76 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     
     const totalWidth = useMemo(() => timelineColumns.reduce((acc, col) => acc + col.width, 0), [timelineColumns]);
 
+    const getPositionFromDate = useCallback((date: Date): number => {
+        if (!timelineColumns.length) return 0;
+
+        let currentPosition = 0;
+        const targetTime = date.getTime();
+
+        for (const col of timelineColumns) {
+            const colStartTime = col.date.getTime();
+            
+            const nextDate = new Date(col.date);
+            if (ganttScale === 'day') nextDate.setDate(nextDate.getDate() + 1);
+            else if (ganttScale === 'week') nextDate.setDate(nextDate.getDate() + 7);
+            else if (ganttScale === 'month') nextDate.setMonth(nextDate.getMonth() + 1);
+            const colEndTime = nextDate.getTime();
+
+            if (targetTime >= colStartTime && targetTime < colEndTime) {
+                const percentage = (targetTime - colStartTime) / (colEndTime - colStartTime);
+                return currentPosition + (col.width * percentage);
+            }
+            currentPosition += col.width;
+        }
+
+        if (targetTime <= timelineColumns[0].date.getTime()) return 0;
+        return totalWidth;
+    }, [timelineColumns, ganttScale, totalWidth]);
+
     const calculateBarPositionAndWidth = (action: Action) => {
-        if (!ganttStartDate || !ganttEndDate || totalWidth === 0) return { left: 0, width: 0 };
-        const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-        const timelineDurationDays = (ganttEndDate.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
-        if (timelineDurationDays <= 0) return { left: 0, width: 0 };
-        
-        const pixelsPerDay = totalWidth / timelineDurationDays;
-
         const actionStart = new Date(action.start_date + 'T00:00:00');
         const actionEnd = new Date(action.due_date + 'T00:00:00');
+        actionEnd.setDate(actionEnd.getDate() + 1); // Make it inclusive
 
-        const startOffsetDays = (actionStart.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
-        const actionDurationDays = ((actionEnd.getTime() - actionStart.getTime()) / MS_PER_DAY) + 1;
-
-        const left = Math.max(0, startOffsetDays * pixelsPerDay);
-        const width = Math.max(10, actionDurationDays * pixelsPerDay);
-
-        return { left, width };
+        const left = getPositionFromDate(actionStart);
+        const right = getPositionFromDate(actionEnd);
+        
+        return { left, width: Math.max(10, right - left) };
     };
+
+    const getDateFromPosition = useCallback((position: number): Date => {
+        if (!timelineColumns.length || !ganttStartDate) return new Date();
+        let currentPosition = 0;
+        let pos = Math.max(0, Math.min(position, totalWidth));
+
+        for (const col of timelineColumns) {
+            if (pos >= currentPosition && pos <= currentPosition + col.width) {
+                const percentage = (pos - currentPosition) / col.width;
+                const colStartTime = col.date.getTime();
+                const nextDate = new Date(col.date);
+                if (ganttScale === 'day') nextDate.setDate(nextDate.getDate() + 1);
+                else if (ganttScale === 'week') nextDate.setDate(nextDate.getDate() + 7);
+                else if (ganttScale === 'month') nextDate.setMonth(nextDate.getMonth() + 1);
+                const colEndTime = nextDate.getTime();
+                const timeOffset = (colEndTime - colStartTime) * percentage;
+                return new Date(colStartTime + timeOffset);
+            }
+            currentPosition += col.width;
+        }
+        return ganttEndDate || new Date();
+    }, [timelineColumns, ganttScale, ganttStartDate, ganttEndDate, totalWidth]);
 
     const snapDateToScale = (date: Date, scale: 'day' | 'week' | 'month') => {
         const newDate = new Date(date);
-        newDate.setUTCHours(0, 0, 0, 0);
+        newDate.setHours(0, 0, 0, 0);
         switch (scale) {
             case 'week':
-                const day = newDate.getUTCDay();
-                const diff = newDate.getUTCDate() - day + (day === 0 ? -6 : 1);
-                newDate.setUTCDate(diff);
+                const day = newDate.getDay();
+                const diff = newDate.getDate() - day + (day === 0 ? -6 : 1); 
+                newDate.setDate(diff);
                 break;
             case 'month':
-                newDate.setUTCDate(1);
+                newDate.setDate(1);
                 break;
         }
         return newDate;
@@ -669,43 +707,42 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         e.stopPropagation();
         const action = validActions.find(a => a.id === actionId);
         if (!action) return;
+
+        const originalStartDate = new Date(action.start_date);
+        const originalEndDate = new Date(action.due_date);
+        const originalDurationMs = originalEndDate.getTime() - originalStartDate.getTime();
+
         setDragState({
             actionId, mode, startX: e.clientX,
-            originalStartDate: new Date(action.start_date),
-            originalEndDate: new Date(action.due_date),
-            scale: ganttScale,
+            originalStartDate, originalEndDate, originalDurationMs
         });
     };
 
     useEffect(() => {
-        if (!dragState) {
-            return;
-        }
+        if (!dragState) return;
+
+        const startPos = getPositionFromDate(dragState.originalStartDate);
 
         const handleMouseMove = (e: MouseEvent) => {
-            if (!dragState || !ganttRef.current || !ganttStartDate || !ganttEndDate) return;
-            
-            const MS_PER_DAY = 1000 * 60 * 60 * 24;
-            const timelineDurationDays = (ganttEndDate.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
-            if (totalWidth === 0 || timelineDurationDays <= 0) return;
-            
-            const daysPerPixel = timelineDurationDays / totalWidth;
+            if (!ganttRef.current) return;
             const deltaX = e.clientX - dragState.startX;
-            const deltaTime = deltaX * daysPerPixel * MS_PER_DAY;
+            let newStartDate: Date, newEndDate: Date;
 
-            let newStartDate, newEndDate;
-
-            if (dragState.mode === 'resize-right') {
+            if (dragState.mode === 'move') {
+                const newPos = startPos + deltaX;
+                newStartDate = getDateFromPosition(newPos);
+                newEndDate = new Date(newStartDate.getTime() + dragState.originalDurationMs);
+            } else { // resize-right
                 newStartDate = new Date(dragState.originalStartDate);
-                newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
-                if (newEndDate.getTime() < newStartDate.getTime()) {
+                const endPos = getPositionFromDate(new Date(dragState.originalEndDate.getTime() + (1000*60*60*24)));
+                const newEndPos = endPos + deltaX;
+                newEndDate = getDateFromPosition(newEndPos);
+                newEndDate.setDate(newEndDate.getDate() - 1); // Adjust back from inclusive end
+                 if (newEndDate.getTime() < newStartDate.getTime()) {
                     newEndDate = new Date(newStartDate.getTime());
                 }
-            } else { // 'move'
-                newStartDate = new Date(dragState.originalStartDate.getTime() + deltaTime);
-                newEndDate = new Date(dragState.originalEndDate.getTime() + deltaTime);
             }
-            
+
             onUpdateAction(dragState.actionId, {
                 start_date: newStartDate.toISOString().split('T')[0],
                 due_date: newEndDate.toISOString().split('T')[0],
@@ -713,45 +750,40 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         };
 
         const handleMouseUp = () => {
-            if (!dragState) return;
             const action = actions.find(a => a.id === dragState.actionId);
-            if (!action) { 
-                setDragState(null); 
+            if (!action) {
+                setDragState(null);
                 return;
-            };
-            
+            }
+
             const currentStartDate = new Date(action.start_date);
             const currentEndDate = new Date(action.due_date);
             
-            const finalStartDate = snapDateToScale(currentStartDate, dragState.scale);
+            const finalStartDate = snapDateToScale(currentStartDate, ganttScale);
             const durationMs = currentEndDate.getTime() - currentStartDate.getTime();
             const finalEndDate = new Date(finalStartDate.getTime() + durationMs);
 
             const finalStartDateStr = finalStartDate.toISOString().split('T')[0];
             const finalEndDateStr = finalEndDate.toISOString().split('T')[0];
             
-            onUpdateAction(dragState.actionId, {
-                start_date: finalStartDateStr,
-                due_date: finalEndDateStr,
-            });
-
             const originalStartDateStr = dragState.originalStartDate.toISOString().split('T')[0];
             const originalEndDateStr = dragState.originalEndDate.toISOString().split('T')[0];
+
             if (finalStartDateStr !== originalStartDateStr || finalEndDateStr !== originalEndDateStr) {
-                setConfirmationModal({ action, newStartDate: finalStartDateStr, newEndDate: finalEndDateStr, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
+                 onUpdateAction(dragState.actionId, { start_date: finalStartDateStr, due_date: finalEndDateStr });
+                 setConfirmationModal({ action, newStartDate: finalStartDateStr, newEndDate: finalEndDateStr, originalStartDate: originalStartDateStr, originalEndDate: originalEndDateStr });
             }
             
             setDragState(null);
         };
 
         document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mouseup', handleMouseUp, { once: true });
 
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [dragState, actions, ganttStartDate, ganttEndDate, totalWidth, onUpdateAction]);
+    }, [dragState, actions, ganttScale, getPositionFromDate, getDateFromPosition, onUpdateAction]);
 
     const handleConfirm = () => setConfirmationModal(null);
     const handleCancel = () => {
