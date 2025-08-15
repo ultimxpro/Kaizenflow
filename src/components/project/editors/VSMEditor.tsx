@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { A3Module, VSMElement, VSMConnection, VSMContent, VSMElementType } from '../../../types/database';
 import { useDatabase } from '../../../contexts/DatabaseContext';
 import { 
   HelpCircle, Square, Triangle, User, Truck, ArrowRight, Type, Save, Trash2, GitMerge, 
   MousePointer, X, Settings, Clock, Users, Percent, Boxes, HardDrive, Edit2, MessageSquare, 
-  Plus, Workflow, Zap, Eye, Minus, ZoomIn, ZoomOut, Move
+  Plus, Workflow, Zap, Eye, Minus, ZoomIn, ZoomOut, Move, Link2, Unlink2
 } from 'lucide-react';
 
 // --- INITIAL STATE & EXAMPLE DATA ---
@@ -12,6 +12,7 @@ const getInitialContent = (content: any): VSMContent => {
   if (content && content.elements && content.elements.length > 0) {
     return content;
   }
+  // --- EXEMPLE CONCRET : USINE DE FABRICATION DE PIÈCES MÉTALLIQUES ---
   return {
     global: { demandeClient: 18400, tempsOuverture: 28800, uniteTemps: 'secondes' },
     elements: [
@@ -28,17 +29,18 @@ const getInitialContent = (content: any): VSMContent => {
       { id: 'el-livraison', type: 'Livraison', x: 2000, y: 300, width: 150, height: 100, data: { nom: 'Expédition', frequence: 'Quotidienne' } },
       { id: 'el-client', type: 'Client', x: 2200, y: 300, width: 150, height: 100, data: { nom: 'Client Final', frequence: '18400 p / mois' } },
       { id: 'el-controleprod', type: 'ControleProduction', x: 1050, y: 80, width: 180, height: 100, data: { nom: 'Contrôle Production' } },
+      { id: 'el-kaizen1', type: 'Kaizen', x: 500, y: 450, width: 100, height: 80, data: { details: 'Réduire TCH Pliage' } },
     ],
     connections: [
-      { id: 'c1', from: 'el-fournisseur', to: 'el-decoupe', type: 'matiere', data: { arrowType: 'pousse' } },
-      { id: 'c2', from: 'el-decoupe', to: 'el-pliage', type: 'matiere', data: { arrowType: 'pousse' } },
-      { id: 'c3', from: 'el-pliage', to: 'el-soudure', type: 'matiere', data: { arrowType: 'pousse' } },
-      { id: 'c4', from: 'el-soudure', to: 'el-assemblage', type: 'matiere', data: { arrowType: 'pousse' } },
-      { id: 'c5', from: 'el-assemblage', to: 'el-livraison', type: 'matiere', data: { arrowType: 'pousse' } },
-      { id: 'c6', from: 'el-livraison', to: 'el-client', type: 'matiere' },
-      { id: 'c7', from: 'el-client', to: 'el-controleprod', type: 'information', data: { infoType: 'electronique', details: 'Prévisions' } },
-      { id: 'c8', from: 'el-controleprod', to: 'el-fournisseur', type: 'information', data: { infoType: 'electronique', details: 'Commandes' } },
-      { id: 'c9', from: 'el-controleprod', to: 'el-assemblage', type: 'information', data: { infoType: 'manuel', details: 'Planning' } },
+      { id: 'c1', from: { elementId: 'el-fournisseur', anchor: 'right' }, to: { elementId: 'el-decoupe', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
+      { id: 'c2', from: { elementId: 'el-decoupe', anchor: 'right' }, to: { elementId: 'el-pliage', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
+      { id: 'c3', from: { elementId: 'el-pliage', anchor: 'right' }, to: { elementId: 'el-soudure', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
+      { id: 'c4', from: { elementId: 'el-soudure', anchor: 'right' }, to: { elementId: 'el-assemblage', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
+      { id: 'c5', from: { elementId: 'el-assemblage', anchor: 'right' }, to: { elementId: 'el-livraison', anchor: 'left' }, type: 'matiere', data: { arrowType: 'pousse' } },
+      { id: 'c6', from: { elementId: 'el-livraison', anchor: 'right' }, to: { elementId: 'el-client', anchor: 'left' }, type: 'matiere' },
+      { id: 'c7', from: { elementId: 'el-client', anchor: 'top' }, to: { elementId: 'el-controleprod', anchor: 'right' }, type: 'information', data: { infoType: 'electronique', details: 'Prévisions' } },
+      { id: 'c8', from: { elementId: 'el-controleprod', anchor: 'left' }, to: { elementId: 'el-fournisseur', anchor: 'top' }, type: 'information', data: { infoType: 'electronique', details: 'Commandes' } },
+      { id: 'c9', from: { elementId: 'el-controleprod', anchor: 'bottom' }, to: { elementId: 'el-assemblage', anchor: 'top' }, type: 'information', data: { infoType: 'manuel', details: 'Planning' } },
     ]
   };
 };
@@ -49,7 +51,10 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
   const { updateA3Module } = useDatabase();
   const [content, setContent] = useState<VSMContent>(() => getInitialContent(module.content));
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [viewState, setViewState] = useState({ zoom: 0.8, pan: { x: 0, y: 0 } });
+  const [viewState, setViewState] = useState({ zoom: 0.7, pan: { x: 0, y: 0 } });
+  const [mode, setMode] = useState<'select' | 'connect'>('select');
+  const [connectingFrom, setConnectingFrom] = useState<{elementId: string, anchor: 'top' | 'bottom' | 'left' | 'right'} | null>(null);
+  
   const canvasRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -66,6 +71,7 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
       y: (type === 'Processus' || type === 'Stock' ? 300 : 80) - viewState.pan.y / viewState.zoom,
       width: 180, height: 120, data: { nom: `Nouveau ${type}` }
     };
+    if (type === 'Kaizen') { newElement.width = 100; newElement.height = 80; }
     setContent(c => ({ ...c, elements: [...c.elements, newElement] }));
   };
 
@@ -74,7 +80,7 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
     setContent(c => ({
       ...c,
       elements: c.elements.filter(el => el.id !== id),
-      connections: c.connections.filter(conn => conn.from !== id && conn.to !== id)
+      connections: c.connections.filter(conn => conn.from.elementId !== id && conn.to.elementId !== id)
     }));
     setSelectedItemId(null);
   };
@@ -93,7 +99,7 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
       e.currentTarget.style.cursor = 'grabbing';
     }
   };
-
+  
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isPanning.current) {
       const dx = e.clientX - lastMousePos.current.x;
@@ -102,11 +108,28 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
       lastMousePos.current = { x: e.clientX, y: e.clientY };
     }
   };
-
+  
   const handleMouseUp = (e: React.MouseEvent) => {
     if (e.button === 1) {
       isPanning.current = false;
       if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
+    }
+  };
+
+  const handleAnchorClick = (elementId: string, anchor: 'top' | 'bottom' | 'left' | 'right') => {
+    if (mode !== 'connect') return;
+    if (!connectingFrom) {
+      setConnectingFrom({ elementId, anchor });
+    } else {
+      const newConnection: VSMConnection = {
+        id: `conn-${Date.now()}`,
+        from: connectingFrom,
+        to: { elementId, anchor },
+        type: 'information' // Default type
+      };
+      setContent(c => ({ ...c, connections: [...c.connections, newConnection] }));
+      setConnectingFrom(null);
+      setMode('select');
     }
   };
 
@@ -123,7 +146,7 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
           <h1 className="text-xl font-bold text-gray-800">Éditeur VSM Professionnel</h1>
         </div>
         <div className="flex items-center space-x-2">
-            <Toolbar onAddElement={addElement} />
+            <Toolbar onAddElement={addElement} mode={mode} setMode={setMode} />
             <button onClick={onClose} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full">
                 <X className="w-5 h-5 text-gray-600" />
             </button>
@@ -133,10 +156,10 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
       <main className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-hidden relative bg-gray-200" ref={canvasRef} onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} style={{ cursor: 'grab' }}>
           <div className="absolute top-0 left-0" style={{ transform: `translate(${viewState.pan.x}px, ${viewState.pan.y}px) scale(${viewState.zoom})`, transformOrigin: '0 0' }}>
-            {content.elements.map(el => <VSMNode key={el.id} element={el} isSelected={selectedItemId === el.id} onSelect={setSelectedItemId} onUpdate={updateElement} zoom={viewState.zoom} />)}
-            <svg className="absolute top-0 left-0 w-[5000px] h-[3000px] pointer-events-none" style={{transform: 'translate(-50%, -50%)', top: '50%', left: '50%'}}>
+            <svg className="absolute top-0 left-0 w-[5000px] h-[3000px] pointer-events-none" style={{transform: 'translate(-2500px, -1500px)', top: '50%', left: '50%'}}>
               {content.connections.map(conn => <VSMLine key={conn.id} connection={conn} elements={content.elements} />)}
             </svg>
+            {content.elements.map(el => <VSMNode key={el.id} element={el} isSelected={selectedItemId === el.id} onSelect={setSelectedItemId} onUpdate={updateElement} zoom={viewState.zoom} onAnchorClick={handleAnchorClick} isConnecting={mode === 'connect'} />)}
           </div>
         </div>
 
@@ -153,10 +176,13 @@ export const VSMEditor: React.FC<{ module: A3Module; onClose: () => void; }> = (
 };
 
 // --- SUB-COMPONENTS ---
-const Toolbar: React.FC<{ onAddElement: (type: VSMElementType) => void }> = ({ onAddElement }) => {
-  const elementTypes: VSMElementType[] = ['Fournisseur', 'Client', 'Processus', 'Stock', 'ControleProduction', 'Livraison', 'Texte'];
+const Toolbar: React.FC<{ onAddElement: (type: VSMElementType) => void, mode: string, setMode: (m: 'select' | 'connect') => void }> = ({ onAddElement, mode, setMode }) => {
+  const elementTypes: VSMElementType[] = ['Fournisseur', 'Client', 'Processus', 'Stock', 'ControleProduction', 'Livraison', 'Texte', 'Kaizen'];
   return (
     <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg">
+      <button onClick={() => setMode('select')} className={`p-2 rounded ${mode === 'select' ? 'bg-emerald-500 text-white' : 'hover:bg-gray-200'}`} title="Sélectionner/Déplacer"><MousePointer size={18} /></button>
+      <button onClick={() => setMode('connect')} className={`p-2 rounded ${mode === 'connect' ? 'bg-emerald-500 text-white' : 'hover:bg-gray-200'}`} title="Connecter"><Link2 size={18} /></button>
+      <div className="w-px h-6 bg-gray-300 mx-1"></div>
       {elementTypes.map(type => (
         <button key={type} onClick={() => onAddElement(type)} className="p-2 hover:bg-gray-200 rounded" title={`Ajouter ${type}`}>
           {type === 'Fournisseur' && <Truck size={18} />}
@@ -166,13 +192,14 @@ const Toolbar: React.FC<{ onAddElement: (type: VSMElementType) => void }> = ({ o
           {type === 'ControleProduction' && <Workflow size={18} />}
           {type === 'Livraison' && <ArrowRight size={18} />}
           {type === 'Texte' && <Type size={18} />}
+          {type === 'Kaizen' && <Zap size={18} />}
         </button>
       ))}
     </div>
   );
 };
 
-const VSMNode: React.FC<{ element: VSMElement; isSelected: boolean; onSelect: (id: string) => void; onUpdate: (id: string, newEl: VSMElement) => void; zoom: number; }> = ({ element, isSelected, onSelect, onUpdate, zoom }) => {
+const VSMNode: React.FC<{ element: VSMElement; isSelected: boolean; onSelect: (id: string) => void; onUpdate: (id: string, newEl: VSMElement) => void; zoom: number; onAnchorClick: (id: string, anchor: 'top'|'bottom'|'left'|'right') => void; isConnecting: boolean; }> = ({ element, isSelected, onSelect, onUpdate, zoom, onAnchorClick, isConnecting }) => {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSelect(element.id);
@@ -183,7 +210,9 @@ const VSMNode: React.FC<{ element: VSMElement; isSelected: boolean; onSelect: (i
     const handleMouseMove = (me: MouseEvent) => {
       const dx = me.clientX / zoom - startX;
       const dy = me.clientY / zoom - startY;
-      onUpdate(element.id, { ...element, x: startElX + dx, y: startElY + dy });
+      const newX = Math.round((startElX + dx) / 10) * 10;
+      const newY = Math.round((startElY + dy) / 10) * 10;
+      onUpdate(element.id, { ...element, x: newX, y: newY });
     };
 
     const handleMouseUp = () => {
@@ -204,20 +233,39 @@ const VSMNode: React.FC<{ element: VSMElement; isSelected: boolean; onSelect: (i
       case 'Livraison': return <TruckNode data={element.data} />;
       case 'ControleProduction': return <ControlNode data={element.data} />;
       case 'Texte': return <TextNode data={element.data} onUpdate={data => onUpdate(element.id, {...element, data})} />;
+      case 'Kaizen': return <KaizenNode data={element.data} />;
       default: return <div>{element.data.nom || element.type}</div>;
     }
   }, [element, onUpdate]);
+  
+  const anchors = ['top', 'bottom', 'left', 'right'] as const;
 
   return (
-    <div className={`absolute p-2 shadow-md cursor-move transition-all duration-100 ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-2' : 'hover:shadow-lg'}`}
+    <div className={`absolute p-2 shadow-md cursor-move transition-all duration-100 group ${isSelected ? 'z-10' : 'z-0'}`}
       style={{ left: element.x, top: element.y, width: element.width, height: element.height }}
       onMouseDown={handleMouseDown}
     >
-      {nodeContent}
+      <div className={`w-full h-full relative ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}`}>
+        {nodeContent}
+      </div>
+      {isConnecting && anchors.map(anchor => (
+        <div 
+          key={anchor}
+          className="absolute w-4 h-4 bg-cyan-400 border-2 border-white rounded-full cursor-crosshair hover:bg-cyan-600"
+          style={{
+            top: anchor === 'top' ? -8 : anchor === 'bottom' ? 'auto' : '50%',
+            bottom: anchor === 'bottom' ? -8 : 'auto',
+            left: anchor === 'left' ? -8 : anchor === 'right' ? 'auto' : '50%',
+            right: anchor === 'right' ? -8 : 'auto',
+            transform: 'translate(-50%, -50%)'
+          }}
+          onClick={(e) => { e.stopPropagation(); onAnchorClick(element.id, anchor); }}
+        />
+      ))}
     </div>
   );
 };
-
+// ... Node components
 const ProcessNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
     <div className="w-full h-full bg-blue-100 border-2 border-blue-500 flex flex-col items-center justify-center p-1">
         <h4 className="font-bold text-sm text-blue-800 mb-1">{data.nom}</h4>
@@ -262,6 +310,12 @@ const ControlNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
 const TextNode: React.FC<{data: VSMElement['data'], onUpdate: (data: VSMElement['data']) => void}> = ({data, onUpdate}) => (
     <textarea className="w-full h-full bg-transparent border-none outline-none resize-none text-sm p-1" value={data.contenu || ''} onChange={(e) => onUpdate({ ...data, contenu: e.target.value })} />
 );
+const KaizenNode: React.FC<{data: VSMElement['data']}> = ({data}) => (
+    <div className="w-full h-full flex flex-col items-center justify-center bg-yellow-100 border-2 border-yellow-500 p-1">
+        <Zap size={24} className="text-yellow-600" />
+        <p className="text-xs text-center font-semibold mt-1 text-yellow-800">{data.details}</p>
+    </div>
+);
 
 const DetailsPanel: React.FC<{ element?: VSMElement; onUpdate: (id: string, newEl: VSMElement) => void; onDelete: (id: string) => void; globalData: VSMContent['global']; onUpdateGlobal: (key: keyof VSMContent['global'], value: any) => void; }> = ({ element, onUpdate, onDelete, globalData, onUpdateGlobal }) => {
   if (!element) return (
@@ -293,11 +347,11 @@ const DetailsPanel: React.FC<{ element?: VSMElement; onUpdate: (id: string, newE
           </>}
           {element.type === 'Stock' && <Input label="Quantité (jours)" type="number" value={element.data.quantite || 0} onChange={v => handleDataChange('quantite', +v)} />}
           {(element.type === 'Client' || element.type === 'Fournisseur' || element.type === 'Livraison') && <Input label="Fréquence" value={element.data.frequence || ''} onChange={v => handleDataChange('frequence', v)} />}
+          {element.type === 'Kaizen' && <Input label="Détails" value={element.data.details || ''} onChange={v => handleDataChange('details', v)} />}
         </div>
     </div>
   );
 };
-
 const Input: React.FC<{label: string, value: string | number, onChange: (val: string | number) => void, type?: string}> = ({label, value, onChange, type="text"}) => (
     <div>
         <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
@@ -306,25 +360,36 @@ const Input: React.FC<{label: string, value: string | number, onChange: (val: st
 );
 
 const VSMLine: React.FC<{connection: VSMConnection, elements: VSMElement[]}> = ({connection, elements}) => {
-    const fromEl = elements.find(el => el.id === connection.from);
-    const toEl = elements.find(el => el.id === connection.to);
+    const fromEl = elements.find(el => el.id === connection.from.elementId);
+    const toEl = elements.find(el => el.id === connection.to.elementId);
 
     if (!fromEl || !toEl) return null;
     
-    const x1 = fromEl.x + fromEl.width / 2, y1 = fromEl.y + fromEl.height / 2;
-    const x2 = toEl.x + toEl.width / 2, y2 = toEl.y + toEl.height / 2;
+    const getAnchorPoint = (el: VSMElement, anchor: 'top'|'bottom'|'left'|'right') => {
+        switch(anchor) {
+            case 'top': return { x: el.x + el.width / 2, y: el.y };
+            case 'bottom': return { x: el.x + el.width / 2, y: el.y + el.height };
+            case 'left': return { x: el.x, y: el.y + el.height / 2 };
+            case 'right': return { x: el.x + el.width, y: el.y + el.height / 2 };
+        }
+    }
+    
+    const p1 = getAnchorPoint(fromEl, connection.from.anchor);
+    const p2 = getAnchorPoint(toEl, connection.to.anchor);
     
     const isInfo = connection.type === 'information';
     const isPushed = connection.data?.arrowType === 'pousse';
+
+    const pathData = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
 
     return (
         <g>
             <defs>
                 <marker id="arrow-info" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" /></marker>
-                <marker id="arrow-pousse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10" stroke="#333" strokeWidth="2" fill="none" /><path d="M 2 2 L 2 8" stroke="#333" strokeWidth="2" fill="none"/><path d="M 5 2 L 5 8" stroke="#333" strokeWidth="2" fill="none"/></marker>
+                <marker id="arrow-pousse" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><circle cx="5" cy="5" r="4" stroke="#333" strokeWidth="1.5" fill="white" /></marker>
                 <marker id="arrow-simple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333" /></marker>
             </defs>
-            <path d={`M ${x1} ${y1} L ${x2} ${y2}`} stroke={isInfo ? "#475569" : "#333"} strokeWidth="2" strokeDasharray={isInfo ? "5,5" : "none"} markerEnd={isInfo ? "url(#arrow-info)" : (isPushed ? "url(#arrow-pousse)" : "url(#arrow-simple)")} />
+            <path d={pathData} stroke={isInfo ? "#475569" : "#333"} strokeWidth="2" strokeDasharray={isInfo ? "5,5" : "none"} markerEnd={isInfo ? "url(#arrow-info)" : (isPushed ? "url(#arrow-pousse)" : "url(#arrow-simple)")} fill="none" />
         </g>
     )
 }
@@ -340,26 +405,34 @@ const Timeline: React.FC<{content: VSMContent}> = ({content}) => {
     const multiplier = unitMultipliers[unit];
 
     let cumulativeTime = 0;
+    const totalVA = timelineItems.filter(i => i.type === 'Processus').reduce((sum, el) => sum + (el.data.tempsCycle || 0), 0);
+    const totalNVA = timelineItems.filter(i => i.type === 'Stock').reduce((sum, el) => sum + ((el.data.quantite || 0) * 86400), 0);
+    const totalLeadTime = totalVA + totalNVA;
 
     return (
         <div>
             <div className="w-full h-16 flex border-b-2 border-gray-400">
-                {timelineItems.map((item, index) => {
+                {timelineItems.map((item) => {
                     const isProcess = item.type === 'Processus';
-                    const time = isProcess ? (item.data.tempsCycle || 0) : ((item.data.quantite || 0) * 86400); // Stock in days to seconds
+                    const time = isProcess ? (item.data.tempsCycle || 0) : ((item.data.quantite || 0) * 86400);
+                    const width = (time / totalLeadTime) * 100;
                     cumulativeTime += time;
                     return (
-                        <div key={item.id} className="h-full flex flex-col justify-end text-center">
-                            <div className={`w-16 border-r-2 border-gray-400 ${isProcess ? 'h-full bg-blue-200' : 'h-1/2 bg-transparent'}`}>
+                        <div key={item.id} className="h-full flex flex-col justify-end text-center relative" style={{width: `${width}%`}}>
+                            <div className={`w-full border-r-2 border-gray-400 ${isProcess ? 'h-full bg-blue-200' : 'h-1/2 bg-transparent'}`}>
                                 <span className="text-xs font-bold">{isProcess ? "VA" : "NVA"}</span><br/>
                                 <span className="text-xs">{(time / multiplier).toFixed(1)} {unit.substring(0,1)}</span>
                             </div>
-                            <div className="text-xs font-semibold -mr-4 transform translate-x-1/2">{ (cumulativeTime / multiplier).toFixed(1) }</div>
+                            <div className="text-xs font-semibold absolute -bottom-4 right-0 transform translate-x-1/2">{ (cumulativeTime / multiplier).toFixed(1) }</div>
                         </div>
                     )
                 })}
             </div>
-            <div className="w-16 border-r-2 border-gray-400 h-8 flex flex-col justify-end text-center"><div className="text-xs font-semibold -mr-4 transform translate-x-1/2">0</div></div>
+            <div className="flex justify-between mt-5 text-xs font-medium">
+                <div className="text-blue-600">Temps VA: {(totalVA/multiplier).toFixed(2)} {unit}</div>
+                <div className="text-gray-700 font-bold">Temps de Défilement Total: {(totalLeadTime / 86400).toFixed(2)} jours</div>
+                <div className="text-red-600">Temps NVA: {(totalNVA / 86400).toFixed(2)} jours</div>
+            </div>
         </div>
     );
 };
