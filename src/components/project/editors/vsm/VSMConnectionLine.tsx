@@ -99,3 +99,75 @@ export const VSMConnectionLine: React.FC<VSMConnectionLineProps> = ({
           refY="5" 
           markerWidth="8" 
           markerHeight="8"
+          orient="auto"
+        >
+          <circle cx="5" cy="5" r="3" fill={isInfo ? "#6B7280" : "#374151"} />
+        </marker>
+        
+        <marker 
+          id={`retrait-${connection.id}`} 
+          viewBox="0 0 10 10" 
+          refX="5" 
+          refY="5" 
+          markerWidth="8" 
+          markerHeight="8"
+          orient="auto"
+        >
+          <rect x="2" y="2" width="6" height="6" fill={isInfo ? "#6B7280" : "#374151"} />
+        </marker>
+        
+        <marker 
+          id={`supermarche-${connection.id}`} 
+          viewBox="0 0 10 10" 
+          refX="5" 
+          refY="5" 
+          markerWidth="8" 
+          markerHeight="8"
+          orient="auto"
+        >
+          <polygon points="5,1 9,9 1,9" fill={isInfo ? "#6B7280" : "#374151"} />
+        </marker>
+      </defs>
+
+      {/* Zone de clic invisible plus large */}
+      <path
+        d={pathData.path}
+        stroke="transparent"
+        strokeWidth="12"
+        fill="none"
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        className="cursor-pointer"
+      />
+
+      {/* Ligne de connexion visible */}
+      <path
+        d={pathData.path}
+        stroke={isSelected ? "#3B82F6" : (isInfo ? "#6B7280" : "#374151")}
+        strokeWidth={isSelected ? "3" : "2"}
+        fill="none"
+        strokeDasharray={isInfo ? (isManual ? "5,5" : "none") : "none"}
+        markerEnd={`url(#${
+          isPushed ? `push-${connection.id}` :
+          isRetrait ? `retrait-${connection.id}` :
+          isSupermarche ? `supermarche-${connection.id}` :
+          `arrow-${connection.id}`
+        })`}
+        className="pointer-events-none"
+      />
+
+      {/* Label de la connexion */}
+      {connection.data?.label && (
+        <text
+          x={(pathData.p1.x + pathData.p2.x) / 2}
+          y={(pathData.p1.y + pathData.p2.y) / 2 - 10}
+          textAnchor="middle"
+          className="fill-gray-700 text-xs font-medium pointer-events-none"
+        >
+          {connection.data.label}
+        </text>
+      )}
+    </g>
+  );
+};
