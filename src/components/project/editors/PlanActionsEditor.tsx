@@ -630,15 +630,21 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
     const calculateBarPositionAndWidth = (action: Action) => {
         if (!ganttStartDate || !ganttEndDate || totalWidth === 0) return { left: 0, width: 0 };
         const MS_PER_DAY = 1000 * 60 * 60 * 24;
-        const timelineDurationMs = ganttEndDate.getTime() - ganttStartDate.getTime();
-        if (timelineDurationMs <= 0) return { left: 0, width: 0 };
-        const pixelsPerMs = totalWidth / timelineDurationMs;
+
+        const timelineDurationDays = (ganttEndDate.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
+        if (timelineDurationDays <= 0) return { left: 0, width: 0 };
+        
+        const pixelsPerDay = totalWidth / timelineDurationDays;
+
         const actionStart = new Date(action.start_date + 'T00:00:00');
         const actionEnd = new Date(action.due_date + 'T00:00:00');
-        const startOffsetMs = actionStart.getTime() - ganttStartDate.getTime();
-        const actionDurationMs = (actionEnd.getTime() - actionStart.getTime()) + MS_PER_DAY;
-        const left = Math.max(0, startOffsetMs * pixelsPerMs);
-        const width = Math.max(10, actionDurationMs * pixelsPerMs);
+
+        const startOffsetDays = (actionStart.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
+        const actionDurationDays = ((actionEnd.getTime() - actionStart.getTime()) / MS_PER_DAY) + 1;
+
+        const left = Math.max(0, startOffsetDays * pixelsPerDay);
+        const width = Math.max(10, actionDurationDays * pixelsPerDay);
+
         return { left, width };
     };
 
@@ -671,7 +677,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         });
     };
 
-    // --- BLOC CORRIGÉ ---
     useEffect(() => {
         if (!dragState) {
             return;
@@ -679,12 +684,14 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
 
         const handleMouseMove = (e: MouseEvent) => {
             if (!dragState || !ganttRef.current || !ganttStartDate || !ganttEndDate) return;
-            const timelineDurationMs = ganttEndDate.getTime() - ganttStartDate.getTime();
-            if (totalWidth === 0 || timelineDurationMs <= 0) return;
             
-            const msPerPixel = timelineDurationMs / totalWidth;
+            const MS_PER_DAY = 1000 * 60 * 60 * 24;
+            const timelineDurationDays = (ganttEndDate.getTime() - ganttStartDate.getTime()) / MS_PER_DAY;
+            if (totalWidth === 0 || timelineDurationDays <= 0) return;
+            
+            const daysPerPixel = timelineDurationDays / totalWidth;
             const deltaX = e.clientX - dragState.startX;
-            const deltaTime = deltaX * msPerPixel;
+            const deltaTime = deltaX * daysPerPixel * MS_PER_DAY;
 
             let newStartDate, newEndDate;
 
@@ -707,7 +714,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
 
         const handleMouseUp = () => {
             if (!dragState) return;
-            // Utilise 'actions' directement car 'validActions' pourrait être périmé dans cette closure
             const action = actions.find(a => a.id === dragState.actionId);
             if (!action) { 
                 setDragState(null); 
@@ -745,7 +751,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [dragState, actions, ganttStartDate, ganttEndDate, totalWidth, onUpdateAction]); // Dépendances mises à jour pour la robustesse
+    }, [dragState, actions, ganttStartDate, ganttEndDate, totalWidth, onUpdateAction]);
 
     const handleConfirm = () => setConfirmationModal(null);
     const handleCancel = () => {
@@ -874,7 +880,6 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
         </div>
     );
 };
-
 // --- COMPOSANT PRINCIPAL ---
 const TabButton = ({ active, onClick, children, icon }: { active: boolean, onClick: () => void, children: React.ReactNode, icon: React.ReactNode }) => (
     <button onClick={onClick} className={`py-2 px-4 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${active ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
