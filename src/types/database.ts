@@ -3,6 +3,7 @@ export interface User {
   email: string;
   password: string;
   nom: string;
+  avatarUrl?: string;
 }
 
 export interface Persona {
@@ -16,7 +17,6 @@ export interface Project {
   id: string;
   pilote: string;
   titre: string;
-  // Le champ 'theme' est maintenant remplacé par 'what' pour plus de clarté
   what: string; // anciennement 'Quoi ?'
   dateCreation: Date;
   dateProbleme: Date; // NOUVEAU CHAMP
@@ -26,6 +26,7 @@ export interface Project {
   benefit: number;
   statut: 'En cours' | 'Terminé';
   pdcaStep: 'PLAN' | 'DO' | 'CHECK' | 'ACT';
+}
 
 export interface ProjectMember {
   id: string;
@@ -38,7 +39,7 @@ export interface A3Module {
   id: string;
   project: string; // Project ID
   quadrant: 'PLAN' | 'DO' | 'CHECK' | 'ACT';
-  toolType: '5W1H' | '5Pourquoi' | 'Image' | '4M' | 'OPL' | '5S' | 'VSM' | 'PlanActions' | 'Croquis' | 'Iframe';
+  toolType: '5Pourquoi' | 'Image' | '4M' | 'OPL' | '5S' | 'VSM' | 'PlanActions' | 'Croquis' | 'Iframe';
   content: any;
   position: number;
   titre?: string;
@@ -51,17 +52,24 @@ export interface ModuleAssignee {
   user: string; // User ID
 }
 
+// --- MODIFICATION MAJEURE ICI ---
+// Unification du type Action pour inclure start_date et due_date
 export interface Action {
   id: string;
   titre: string;
+  description?: string;
   typeAction: 'Sécurisation' | 'Simple' | 'Poka-Yoke';
-  dateEcheance: string;
+  start_date: string; // Ajouté pour le Gantt
+  due_date: string; // Remplacement de dateEcheance
   statut: 'À Faire' | 'En Cours' | 'Fait';
   effort: number; // 1-10
   gain: number; // 1-10
   project: string; // Project ID
   createdBy: string; // User ID
+  assignee_ids: string[]; // Ajouté pour la cohérence
+  leader_id?: string; // Ajouté pour la cohérence
 }
+// --- FIN DE LA MODIFICATION MAJEURE ---
 
 export interface ActionAssignee {
   id: string;
@@ -70,14 +78,6 @@ export interface ActionAssignee {
 }
 
 export interface ToolData {
-  '5W1H': {
-    what: string;
-    why: string;
-    when: string;
-    where: string;
-    who: string;
-    how: string;
-  };
   '5Pourquoi': {
     problem: string;
     why1: string;
