@@ -649,14 +649,14 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
             currentPosition += col.width;
         }
 
-        if (targetTime <= timelineColumns[0].date.getTime()) return 0;
+        if (targetTime < timelineColumns[0].date.getTime()) return 0;
         return totalWidth;
     }, [timelineColumns, ganttScale, totalWidth]);
 
     const calculateBarPositionAndWidth = (action: Action) => {
         const actionStart = new Date(action.start_date + 'T00:00:00');
         const actionEnd = new Date(action.due_date + 'T00:00:00');
-        actionEnd.setDate(actionEnd.getDate() + 1); // Make it inclusive
+        actionEnd.setDate(actionEnd.getDate() + 1); // Make it inclusive for width calculation
 
         const left = getPositionFromDate(actionStart);
         const right = getPositionFromDate(actionEnd);
@@ -782,6 +782,7 @@ const GanttView = ({ actions, users, onUpdateAction, onCardClick, ganttScale, se
 
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
         };
     }, [dragState, actions, ganttScale, getPositionFromDate, getDateFromPosition, onUpdateAction]);
 
