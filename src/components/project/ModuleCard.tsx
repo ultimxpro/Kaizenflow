@@ -22,6 +22,7 @@ const getToolIcon = (toolType: string) => {
     case 'PlanActions': return <CheckSquare className="w-4 h-4" />;
     case 'Croquis': return <PenTool className="w-4 h-4" />;
     case 'Iframe': return <Monitor className="w-4 h-4" />;
+    case 'Indicateurs': return <Activity className="w-4 h-4" />;
     default: return <HelpCircle className="w-4 h-4" />;
   }
 };
@@ -39,6 +40,7 @@ const getToolColor = (toolType: string) => {
     case 'PlanActions': return 'bg-green-600';
     case 'Croquis': return 'bg-yellow-500';
     case 'Iframe': return 'bg-gray-500';
+    case 'Indicateurs': return 'bg-cyan-500';
     default: return 'bg-gray-500';
   }
 };
