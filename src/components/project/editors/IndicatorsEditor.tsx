@@ -288,6 +288,77 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
         </div>
       );
     }
+    
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" />
+          <YAxis />
+          <RechartsTooltip content={<CustomTooltip />} />
+          <Legend />
+          
+          {indicator.type === 'bar' && (
+            <Bar dataKey="value" fill={indicator.color} name={indicator.name} />
+          )}
+          
+          {indicator.type === 'area' && (
+            <Area 
+              type="monotone" 
+              dataKey="value" 
+              fill={indicator.color} 
+              stroke={indicator.color} 
+              name={indicator.name}
+              fillOpacity={0.6}
+            />
+          )}
+          
+          {(indicator.type === 'line' || indicator.type === 'spc') && (
+            <Line 
+              type="monotone" 
+              dataKey="value" 
+              stroke={indicator.color} 
+              name={indicator.name}
+              strokeWidth={2}
+              dot={{ fill: indicator.color }}
+            />
+          )}
+          
+          {indicator.type === 'spc' && indicator.controlLimits && (
+            <>
+              <ReferenceLine 
+                y={indicator.controlLimits.target} 
+                stroke="#10B981" 
+                strokeDasharray="5 5" 
+                label="Cible"
+              />
+              <ReferenceLine 
+                y={indicator.controlLimits.upperControl} 
+                stroke="#EF4444" 
+                strokeDasharray="3 3" 
+                label="UCL"
+              />
+              <ReferenceLine 
+                y={indicator.controlLimits.lowerControl} 
+                stroke="#EF4444" 
+                strokeDasharray="3 3" 
+                label="LCL"
+              />
+            </>
+          )}
+          
+          {indicator.showAverage && stats && (
+            <ReferenceLine 
+              y={stats.avg} 
+              stroke="#6B7280" 
+              strokeDasharray="4 4" 
+              label={`Moy: ${stats.avg.toFixed(2)}`}
+            />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+    );
+  };
 
   // Vue détaillée d'un indicateur
   const DetailView = () => {
@@ -479,238 +550,6 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
           </div>
         )}
       </div>
-    );
-  };
-
-  return (
-    <div className="h-full flex flex-col bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              <h2 className="text-xl font-bold">Indicateurs de Performance</h2>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-                  title="Vue grille"
-                >
-                  <BarChart3 className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('detail')}
-                  className={`p-2 rounded ${viewMode === 'detail' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-                  title="Vue détaillée"
-                >
-                  <LineChart className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={addIndicator}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nouvel indicateur</span>
-              </button>
-              
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-              
-              <button
-                onClick={() => setShowHelp(!showHelp)}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                <HelpCircle className="w-5 h-5" />
-              </button>
-              
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        {viewMode === 'detail' && content.indicators.length > 0 && (
-          <div className="px-6 pb-4">
-            <div className="flex space-x-2 overflow-x-auto">
-              {content.indicators.map((indicator) => (
-                <button
-                  key={indicator.id}
-                  onClick={() => saveContent({
-                    ...content,
-                    selectedIndicatorId: indicator.id
-                  })}
-                  className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-                    content.selectedIndicatorId === indicator.id
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {indicator.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {viewMode === 'grid' ? <GridView /> : <DetailView />}
-      </div>
-      
-      {/* Modals */}
-      <IndicatorEditModal />
-      <DataEntryModal />
-      
-      {/* Help Panel */}
-      {showHelp && (
-        <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-lg z-40 overflow-y-auto">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Aide - Module Indicateurs</h3>
-              <button
-                onClick={() => setShowHelp(false)}
-                className="p-1 hover:bg-gray-100 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="space-y-4 text-sm">
-              <div>
-                <h4 className="font-medium mb-2">📊 Types d'indicateurs</h4>
-                <ul className="space-y-1 text-gray-600 ml-4">
-                  <li>• <strong>Ligne:</strong> Pour suivre une évolution dans le temps</li>
-                  <li>• <strong>Barres:</strong> Pour comparer des valeurs discrètes</li>
-                  <li>• <strong>Aire:</strong> Pour visualiser des volumes cumulés</li>
-                  <li>• <strong>SPC:</strong> Carte de contrôle statistique avec limites</li>
-                  <li>• <strong>Pareto:</strong> Pour identifier les causes principales</li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="font-medium mb-2">🎯 Bonnes pratiques</h4>
-                <ul className="space-y-1 text-gray-600 ml-4">
-                  <li>• Définir des objectifs SMART pour chaque indicateur</li>
-                  <li>• Mettre à jour régulièrement les données</li>
-                  <li>• Lier les indicateurs aux actions correctives</li>
-                  <li>• Analyser les tendances plutôt que les points isolés</li>
-                  <li>• Utiliser les limites de contrôle pour détecter les anomalies</li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="font-medium mb-2">💡 Conseils d'utilisation</h4>
-                <ul className="space-y-1 text-gray-600 ml-4">
-                  <li>• Cliquez sur un indicateur pour voir les détails</li>
-                  <li>• Utilisez les actions liées pour le suivi</li>
-                  <li>• Exportez les données pour des analyses approfondies</li>
-                  <li>• Documentez les points hors contrôle avec des commentaires</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-            <BarChart3 className="w-12 h-12 mx-auto mb-2" />
-            <p>Aucune donnée disponible</p>
-            <button
-              onClick={() => {
-                setSelectedIndicatorForData(indicator.id);
-                setShowDataEntry(true);
-              }}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-700"
-            >
-              Ajouter des données
-            </button>
-          </div>
-        </div>
-      );
-    }
-    
-    return (
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis />
-          <RechartsTooltip content={<CustomTooltip />} />
-          <Legend />
-          
-          {indicator.type === 'bar' && (
-            <Bar dataKey="value" fill={indicator.color} name={indicator.name} />
-          )}
-          
-          {indicator.type === 'area' && (
-            <Area 
-              type="monotone" 
-              dataKey="value" 
-              fill={indicator.color} 
-              stroke={indicator.color} 
-              name={indicator.name}
-              fillOpacity={0.6}
-            />
-          )}
-          
-          {(indicator.type === 'line' || indicator.type === 'spc') && (
-            <Line 
-              type="monotone" 
-              dataKey="value" 
-              stroke={indicator.color} 
-              name={indicator.name}
-              strokeWidth={2}
-              dot={{ fill: indicator.color }}
-            />
-          )}
-          
-          {indicator.type === 'spc' && indicator.controlLimits && (
-            <>
-              <ReferenceLine 
-                y={indicator.controlLimits.target} 
-                stroke="#10B981" 
-                strokeDasharray="5 5" 
-                label="Cible"
-              />
-              <ReferenceLine 
-                y={indicator.controlLimits.upperControl} 
-                stroke="#EF4444" 
-                strokeDasharray="3 3" 
-                label="UCL"
-              />
-              <ReferenceLine 
-                y={indicator.controlLimits.lowerControl} 
-                stroke="#EF4444" 
-                strokeDasharray="3 3" 
-                label="LCL"
-              />
-            </>
-          )}
-          
-          {indicator.showAverage && stats && (
-            <ReferenceLine 
-              y={stats.avg} 
-              stroke="#6B7280" 
-              strokeDasharray="4 4" 
-              label={`Moy: ${stats.avg.toFixed(2)}`}
-            />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
     );
   };
 
@@ -1128,3 +967,155 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
         className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center min-h-[400px] cursor-pointer hover:bg-gray-100 transition-colors"
       >
         <div className="text-center">
+          <Plus className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+          <p className="text-gray-600">Ajouter un indicateur</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="h-full flex flex-col bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <h2 className="text-xl font-bold">Indicateurs de Performance</h2>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                  title="Vue grille"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('detail')}
+                  className={`p-2 rounded ${viewMode === 'detail' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                  title="Vue détaillée"
+                >
+                  <LineChart className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={addIndicator}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nouvel indicateur</span>
+              </button>
+              
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+              
+              <button
+                onClick={() => setShowHelp(!showHelp)}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                <HelpCircle className="w-5 h-5" />
+              </button>
+              
+              <button
+                onClick={onClose}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {viewMode === 'detail' && content.indicators.length > 0 && (
+          <div className="px-6 pb-4">
+            <div className="flex space-x-2 overflow-x-auto">
+              {content.indicators.map((indicator) => (
+                <button
+                  key={indicator.id}
+                  onClick={() => saveContent({
+                    ...content,
+                    selectedIndicatorId: indicator.id
+                  })}
+                  className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                    content.selectedIndicatorId === indicator.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {indicator.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {viewMode === 'grid' ? <GridView /> : <DetailView />}
+      </div>
+      
+      {/* Modals */}
+      <IndicatorEditModal />
+      <DataEntryModal />
+      
+      {/* Help Panel */}
+      {showHelp && (
+        <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-lg z-40 overflow-y-auto">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Aide - Module Indicateurs</h3>
+              <button
+                onClick={() => setShowHelp(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4 text-sm">
+              <div>
+                <h4 className="font-medium mb-2">📊 Types d'indicateurs</h4>
+                <ul className="space-y-1 text-gray-600 ml-4">
+                  <li>• <strong>Ligne:</strong> Pour suivre une évolution dans le temps</li>
+                  <li>• <strong>Barres:</strong> Pour comparer des valeurs discrètes</li>
+                  <li>• <strong>Aire:</strong> Pour visualiser des volumes cumulés</li>
+                  <li>• <strong>SPC:</strong> Carte de contrôle statistique avec limites</li>
+                  <li>• <strong>Pareto:</strong> Pour identifier les causes principales</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-medium mb-2">🎯 Bonnes pratiques</h4>
+                <ul className="space-y-1 text-gray-600 ml-4">
+                  <li>• Définir des objectifs SMART pour chaque indicateur</li>
+                  <li>• Mettre à jour régulièrement les données</li>
+                  <li>• Lier les indicateurs aux actions correctives</li>
+                  <li>• Analyser les tendances plutôt que les points isolés</li>
+                  <li>• Utiliser les limites de contrôle pour détecter les anomalies</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-medium mb-2">💡 Conseils d'utilisation</h4>
+                <ul className="space-y-1 text-gray-600 ml-4">
+                  <li>• Cliquez sur un indicateur pour voir les détails</li>
+                  <li>• Utilisez les actions liées pour le suivi</li>
+                  <li>• Exportez les données pour des analyses approfondies</li>
+                  <li>• Documentez les points hors contrôle avec des commentaires</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
