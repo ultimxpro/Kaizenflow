@@ -36,6 +36,8 @@ export const ModuleEditModal: React.FC<ModuleEditModalProps> = ({ module, onClos
         return <CroquisEditor module={module} onClose={onClose}/>;
       case 'PlanActions':
         return <PlanActionsEditor module={module} onClose={onClose}/>;
+      case 'Indicateurs':
+        return <IndicatorsEditor module={module} onClose={onClose} />;
       default:
         return (
           <div className="h-full flex items-center justify-center">
