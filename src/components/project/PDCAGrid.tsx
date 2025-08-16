@@ -31,14 +31,14 @@ const quadrants = [
     headerColor: 'bg-green-100 text-green-800',
     allowedTools: ['5S', 'PlanActions', 'Croquis', 'Iframe']
   },
-  { 
+   { 
     id: 'CHECK', 
     title: 'CHECK', 
     subtitle: 'Vérification des résultats',
     icon: <CheckCircle className="w-6 h-6" />,
     color: 'border-orange-200 bg-orange-50',
     headerColor: 'bg-orange-100 text-orange-800',
-    allowedTools: ['Croquis', 'Iframe']
+    allowedTools: ['Indicateurs', 'Croquis', 'Iframe'] // Ajout d'Indicateurs
   },
   { 
     id: 'ACT', 
