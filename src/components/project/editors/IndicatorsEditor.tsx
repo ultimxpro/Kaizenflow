@@ -690,3 +690,14 @@ const DetailView: React.FC<{
                       label="USL"
                     />
                   )}
+                  {indicator.controlLimits.lowerSpec && (
+                    <ReferenceLine 
+                      y={indicator.controlLimits.lowerSpec} 
+                      stroke="#F59E0B" 
+                      strokeDasharray="2 2"
+                      label="LSL"
+                    />
+                  )}
+                </>
+              )}
+            </ComposedChart>
