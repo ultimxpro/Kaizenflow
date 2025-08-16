@@ -1,6 +1,6 @@
 import React from 'react';
 import { A3Module } from '../../types/database';
-import { HelpCircle, MessageSquareQuote as MessageSquareQuestion, Image, GitBranch, BookOpen, CheckSquare, Workflow, Monitor, PenTool, Edit, MoreVertical, Trash2 } from 'lucide-react';
+import { HelpCircle, MessageSquareQuote as MessageSquareQuestion, Image, GitBranch, BookOpen, CheckSquare, Workflow, Monitor, PenTool, Edit, MoreVertical, Trash2, Activity } from 'lucide-react';
 
 interface ModuleCardProps {
   module: A3Module;
