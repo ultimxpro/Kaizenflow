@@ -701,3 +701,417 @@ const DetailView: React.FC<{
                 </>
               )}
             </ComposedChart>
+          ) : (
+            <LineChart data={indicator.dataPoints}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line 
+                type="monotone" 
+                dataKey="value" 
+                stroke={indicator.color}
+                strokeWidth={2}
+              />
+            </LineChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+
+      {/* Ajout de données */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="font-semibold text-gray-800 mb-4">Ajouter une mesure</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <input
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Valeur ({indicator.unit})
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="0.00"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Commentaire</label>
+            <input
+              type="text"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Optionnel"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handleAddPoint}
+              disabled={!newValue}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            >
+              Ajouter
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tableau des données */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="font-semibold text-gray-800 mb-4">Historique des mesures</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2">Date</th>
+                <th className="text-left py-2">Valeur</th>
+                <th className="text-left py-2">Commentaire</th>
+                <th className="text-left py-2">Statut</th>
+                <th className="text-left py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {indicator.dataPoints.map(point => (
+                <tr key={point.id} className="border-b hover:bg-gray-50">
+                  <td className="py-2">{new Date(point.date).toLocaleDateString()}</td>
+                  <td className="py-2 font-medium">
+                    {point.value.toFixed(2)} {indicator.unit}
+                  </td>
+                  <td className="py-2 text-gray-600">{point.comment || '-'}</td>
+                  <td className="py-2">
+                    {point.outOfControl ? (
+                      <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">
+                        Hors contrôle
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                        Normal
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2">
+                    <button
+                      onClick={() => onDeleteDataPoint(indicator.id, point.id)}
+                      className="p-1 hover:bg-red-100 rounded text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal d'édition d'indicateur
+const IndicatorEditModal: React.FC<{
+  indicator: Indicator;
+  onSave: (updates: Partial<Indicator>) => void;
+  onClose: () => void;
+  projectActions: any[];
+}> = ({ indicator, onSave, onClose, projectActions }) => {
+  const [formData, setFormData] = useState({
+    name: indicator.name,
+    description: indicator.description,
+    type: indicator.type,
+    unit: indicator.unit,
+    frequency: indicator.frequency,
+    status: indicator.status,
+    color: indicator.color,
+    showTrend: indicator.showTrend,
+    showAverage: indicator.showAverage,
+    targetImprovement: indicator.targetImprovement || 0,
+    linkedActions: indicator.linkedActions,
+    controlLimits: indicator.controlLimits || {
+      target: 0,
+      upperControl: 0,
+      lowerControl: 0
+    }
+  });
+
+  const handleSave = () => {
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b">
+          <h2 className="text-xl font-bold text-gray-800">Modifier l'indicateur</h2>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unité</label>
+              <input
+                type="text"
+                value={formData.unit}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="%, €, pièces..."
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="line">Courbe</option>
+                <option value="bar">Barres</option>
+                <option value="area">Aires</option>
+                <option value="spc">SPC</option>
+                <option value="pareto">Pareto</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fréquence</label>
+              <select
+                value={formData.frequency}
+                onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="daily">Quotidien</option>
+                <option value="weekly">Hebdomadaire</option>
+                <option value="monthly">Mensuel</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="active">Actif</option>
+                <option value="paused">Pausé</option>
+                <option value="completed">Terminé</option>
+              </select>
+            </div>
+          </div>
+
+          {formData.type === 'spc' && (
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-medium text-gray-800 mb-3">Limites de contrôle</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cible</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.controlLimits.target}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      controlLimits: {
+                        ...formData.controlLimits,
+                        target: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">LSC</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.controlLimits.upperControl}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      controlLimits: {
+                        ...formData.controlLimits,
+                        upperControl: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">LIC</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.controlLimits.lowerControl}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      controlLimits: {
+                        ...formData.controlLimits,
+                        lowerControl: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Actions liées</label>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {projectActions.map(action => (
+                <label key={action.id} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.linkedActions.includes(action.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData({
+                          ...formData,
+                          linkedActions: [...formData.linkedActions, action.id]
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          linkedActions: formData.linkedActions.filter(id => id !== action.id)
+                        });
+                      }
+                    }}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">{action.title}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal d'aide
+const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-800">Guide des Indicateurs</h2>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-6 space-y-6">
+          <div>
+            <h3 className="font-semibold text-gray-800 mb-2">Qu'est-ce qu'un indicateur ?</h3>
+            <p className="text-gray-600 text-sm">
+              Un indicateur de performance (KPI) permet de mesurer l'efficacité des actions mises en place 
+              et de vérifier l'atteinte des objectifs fixés dans votre A3.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-800 mb-2">Types d'indicateurs</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-start space-x-2">
+                <LineChart className="w-4 h-4 text-blue-500 mt-0.5" />
+                <div>
+                  <strong>Courbe :</strong> Évolution dans le temps, idéal pour les tendances
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <BarChart3 className="w-4 h-4 text-green-500 mt-0.5" />
+                <div>
+                  <strong>Barres :</strong> Comparaisons entre périodes ou catégories
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <Activity className="w-4 h-4 text-purple-500 mt-0.5" />
+                <div>
+                  <strong>SPC :</strong> Contrôle statistique avec limites de contrôle
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <Target className="w-4 h-4 text-orange-500 mt-0.5" />
+                <div>
+                  <strong>Pareto :</strong> Analyse des causes principales (80/20)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-800 mb-2">Bonnes pratiques</h3>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>• Choisissez des indicateurs SMART (Spécifiques, Mesurables, Atteignables, Réalistes, Temporels)</li>
+              <li>• Limitez-vous à 3-5 indicateurs clés par problème</li>
+              <li>• Définissez des cibles et des seuils d'alerte</li>
+              <li>• Collectez les données régulièrement</li>
+              <li>• Analysez les tendances, pas seulement les valeurs ponctuelles</li>
+              <li>• Liez vos indicateurs aux actions correctives</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-800 mb-2">Contrôle statistique (SPC)</h3>
+            <p className="text-gray-600 text-sm mb-2">
+              Le SPC permet de distinguer les variations normales des variations anormales :
+            </p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>• <strong>LSC/LIC :</strong> Limites de contrôle (±3σ)</li>
+              <li>• <strong>Cible :</strong> Valeur objectif à atteindre</li>
+              <li>• <strong>Points hors contrôle :</strong> Signalent un problème à investiguer</li>
+              <li>• <strong>Cp/Cpk :</strong> Indices de capabilité du processus</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
