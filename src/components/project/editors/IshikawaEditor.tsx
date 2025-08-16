@@ -547,65 +547,129 @@ const BranchComponent: React.FC<{
   const angle = position === 'top' ? -45 : 45;
   const mainCauses = branch.causes.filter(c => c.level === 0);
   
+  // Calcul de la longueur de la branche en fonction du nombre de causes
+  const branchLength = Math.max(200, mainCauses.length * 80);
+  
   return (
     <div className="relative flex-1 h-full">
-      {/* Ligne de la branche */}
-      <div 
-        className="absolute left-1/2 w-0.5 bg-gray-400"
+      {/* Ligne de la branche - plus longue et stylisée */}
+      <svg 
+        className="absolute left-1/2 transform -translate-x-1/2"
         style={{
-          height: '40%',
-          top: position === 'top' ? '60%' : '0%',
-          transform: `translateX(-50%) rotate(${angle}deg)`,
-          transformOrigin: position === 'top' ? 'bottom' : 'top'
+          width: '300px',
+          height: '300px',
+          top: position === 'top' ? '30%' : '-30%',
         }}
-      />
+      >
+        <line
+          x1="150"
+          y1={position === 'top' ? 150 : 0}
+          x2={position === 'top' ? 250 : 50}
+          y2={position === 'top' ? 50 : 100}
+          stroke={branch.color}
+          strokeWidth="2"
+          opacity="0.6"
+        />
+        
+        {/* Petites lignes pour les causes */}
+        {mainCauses.map((cause, i) => {
+          const spacing = 60 / (mainCauses.length + 1);
+          const offset = spacing * (i + 1);
+          const x = position === 'top' 
+            ? 150 + (100 * offset / 60)
+            : 150 - (100 * offset / 60);
+          const y = position === 'top'
+            ? 150 - (100 * offset / 60)
+            : 0 + (100 * offset / 60);
+            
+          return (
+            <line
+              key={`line-${cause.id}`}
+              x1={x}
+              y1={y}
+              x2={x + (position === 'top' ? -15 : 15)}
+              y2={y}
+              stroke={branch.color}
+              strokeWidth="1.5"
+              opacity="0.5"
+            />
+          );
+        })}
+      </svg>
       
       {/* Nom de la branche */}
       <div 
         className={`absolute left-1/2 transform -translate-x-1/2 ${
-          position === 'top' ? 'top-4' : 'bottom-4'
-        }`}
+          position === 'top' ? 'top-0' : 'bottom-0'
+        } z-10`}
       >
         <div 
-          className="px-3 py-2 rounded-lg shadow-md font-semibold text-sm flex items-center space-x-2"
+          className="px-4 py-2 rounded-lg shadow-lg font-semibold text-sm flex items-center space-x-2 bg-white"
           style={{ 
-            backgroundColor: `${branch.color}20`,
-            borderLeft: `4px solid ${branch.color}`
+            borderLeft: `4px solid ${branch.color}`,
+            borderTop: `2px solid ${branch.color}20`
           }}
         >
           <span style={{ color: branch.color }}>{branch.icon}</span>
-          <span className="text-gray-700">{branch.name}</span>
+          <span className="text-gray-800">{branch.name}</span>
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            {mainCauses.length}
+          </span>
         </div>
       </div>
 
-      {/* Causes */}
-      <div className={`absolute left-1/2 transform -translate-x-1/2 ${
-        position === 'top' ? 'top-20' : 'bottom-20'
-      } space-y-2`}>
-        {mainCauses.map((cause, i) => (
-          <CauseItem
-            key={cause.id}
-            cause={cause}
-            branchId={branch.id}
-            branchColor={branch.color}
-            onUpdate={onUpdateCause}
-            onDelete={onDeleteCause}
-            onAddSubCause={onAddCause}
-            isEditing={editingCause === cause.id}
-            setEditing={setEditingCause}
-            position={position}
-            allCauses={branch.causes}
-          />
-        ))}
+      {/* Causes distribuées le long de la branche */}
+      {mainCauses.map((cause, i) => {
+        // Calcul de la position le long de la branche
+        const progress = (i + 1) / (mainCauses.length + 1);
+        const xOffset = progress * 120 + 20;
+        const yOffset = position === 'top' 
+          ? 100 - (progress * 50)
+          : 100 + (progress * 50);
         
-        {/* Bouton d'ajout */}
+        return (
+          <div
+            key={cause.id}
+            className="absolute"
+            style={{
+              left: `calc(50% + ${xOffset}px)`,
+              [position === 'top' ? 'top' : 'bottom']: `${yOffset}px`,
+              transform: 'translateX(-50%)'
+            }}
+          >
+            <CauseItem
+              cause={cause}
+              branchId={branch.id}
+              branchColor={branch.color}
+              onUpdate={onUpdateCause}
+              onDelete={onDeleteCause}
+              onAddSubCause={onAddCause}
+              isEditing={editingCause === cause.id}
+              setEditing={setEditingCause}
+              position={position}
+              allCauses={branch.causes}
+              index={i}
+            />
+          </div>
+        );
+      })}
+      
+      {/* Bouton d'ajout positionné après la dernière cause */}
+      <div 
+        className="absolute"
+        style={{
+          left: `calc(50% + ${((mainCauses.length + 1) / (mainCauses.length + 2)) * 120 + 20}px)`,
+          [position === 'top' ? 'top' : 'bottom']: `${100 + (position === 'top' ? -(((mainCauses.length + 1) / (mainCauses.length + 2)) * 50) : (((mainCauses.length + 1) / (mainCauses.length + 2)) * 50))}px`,
+          transform: 'translateX(-50%)'
+        }}
+      >
         <button
           onClick={() => onAddCause(branch.id)}
-          className="flex items-center space-x-1 px-2 py-1 text-xs bg-white hover:bg-gray-50 border border-dashed border-gray-300 rounded transition-colors"
-          style={{ borderColor: branch.color }}
+          className="flex items-center space-x-1 px-3 py-1.5 text-xs bg-white hover:bg-gray-50 border-2 border-dashed rounded-lg transition-all hover:shadow-md"
+          style={{ borderColor: `${branch.color}50`, color: branch.color }}
         >
-          <Plus className="w-3 h-3" style={{ color: branch.color }} />
-          <span style={{ color: branch.color }}>Ajouter une cause</span>
+          <Plus className="w-3 h-3" />
+          <span>Ajouter</span>
         </button>
       </div>
     </div>
@@ -624,7 +688,8 @@ const CauseItem: React.FC<{
   setEditing: (id: string | null) => void;
   position: 'top' | 'bottom';
   allCauses: Cause[];
-}> = ({ cause, branchId, branchColor, onUpdate, onDelete, onAddSubCause, isEditing, setEditing, position, allCauses }) => {
+  index: number;
+}> = ({ cause, branchId, branchColor, onUpdate, onDelete, onAddSubCause, isEditing, setEditing, position, allCauses, index }) => {
   const [localText, setLocalText] = useState(cause.text);
   const subCauses = allCauses.filter(c => c.parentId === cause.id);
 
@@ -650,60 +715,55 @@ const CauseItem: React.FC<{
 
   return (
     <div className="relative">
-      <div className="flex items-center space-x-2">
-        {/* Ligne de connexion pour les sous-causes */}
-        {cause.level > 0 && (
-          <div 
-            className="w-4 h-0.5 bg-gray-300"
-            style={{ backgroundColor: `${branchColor}50` }}
-          />
-        )}
-        
-        {/* Cause principale */}
-        <div className="relative group">
-          {isEditing ? (
-            <div className="flex items-center space-x-1">
-              <input
-                type="text"
-                value={localText}
-                onChange={(e) => setLocalText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={handleSave}
-                className="px-2 py-1 text-sm border-2 rounded focus:outline-none focus:ring-2"
-                style={{ 
-                  borderColor: branchColor,
-                  focusBorderColor: branchColor
-                }}
-                placeholder="Entrez une cause..."
-                autoFocus
-              />
-              <button
-                onClick={handleSave}
-                className="p-1 bg-green-500 text-white rounded hover:bg-green-600"
-              >
-                <Save className="w-3 h-3" />
-              </button>
-            </div>
-          ) : (
-            <div 
-              className="px-3 py-1.5 bg-white border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all text-sm"
+      {/* Cause principale */}
+      <div className="relative group">
+        {isEditing ? (
+          <div className="flex items-center space-x-1 z-20">
+            <input
+              type="text"
+              value={localText}
+              onChange={(e) => setLocalText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleSave}
+              className="px-3 py-1.5 text-sm border-2 rounded-lg focus:outline-none focus:ring-2 bg-white shadow-lg"
               style={{ 
-                borderColor: `${branchColor}40`,
-                backgroundColor: cause.text ? 'white' : `${branchColor}10`
+                borderColor: branchColor,
+                focusBorderColor: branchColor,
+                minWidth: '120px'
               }}
-              onClick={() => setEditing(cause.id)}
+              placeholder="Entrez une cause..."
+              autoFocus
+            />
+            <button
+              onClick={handleSave}
+              className="p-1.5 bg-green-500 text-white rounded hover:bg-green-600 shadow-lg"
             >
+              <Save className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <div 
+            className="px-3 py-2 bg-white border-2 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition-all text-sm min-w-[100px] max-w-[200px]"
+            style={{ 
+              borderColor: `${branchColor}40`,
+              backgroundColor: cause.text ? 'white' : `${branchColor}10`
+            }}
+            onClick={() => setEditing(cause.id)}
+          >
+            <div className="text-xs truncate">
               {cause.text || <span className="text-gray-400 italic">Cliquez pour ajouter</span>}
-              
-              {/* Actions */}
-              <div className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+            </div>
+            
+            {/* Actions au survol */}
+            {cause.text && (
+              <div className="absolute -top-8 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1 z-30">
                 {cause.level === 0 && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onAddSubCause(branchId, cause.id);
                     }}
-                    className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow"
                     title="Ajouter une sous-cause"
                   >
                     <Plus className="w-3 h-3" />
@@ -714,36 +774,52 @@ const CauseItem: React.FC<{
                     e.stopPropagation();
                     onDelete(branchId, cause.id);
                   }}
-                  className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
+                  className="p-1 bg-red-500 text-white rounded hover:bg-red-600 shadow"
                   title="Supprimer"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Sous-causes */}
+      {/* Sous-causes - affichées verticalement pour éviter le chevauchement */}
       {subCauses.length > 0 && (
-        <div className={`ml-6 mt-2 space-y-1 border-l-2 pl-2 ${position === 'top' ? 'border-t-2' : 'border-b-2'}`}
-          style={{ borderColor: `${branchColor}30` }}
+        <div 
+          className={`absolute ${position === 'top' ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 space-y-2`}
+          style={{ minWidth: '150px' }}
         >
-          {subCauses.map(subCause => (
-            <CauseItem
-              key={subCause.id}
-              cause={subCause}
-              branchId={branchId}
-              branchColor={branchColor}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-              onAddSubCause={onAddSubCause}
-              isEditing={false}
-              setEditing={setEditing}
-              position={position}
-              allCauses={allCauses}
-            />
+          <div 
+            className="absolute left-4 w-0.5 bg-gray-300"
+            style={{ 
+              height: `${subCauses.length * 40}px`,
+              top: position === 'top' ? 0 : 'auto',
+              bottom: position === 'bottom' ? 0 : 'auto',
+              backgroundColor: `${branchColor}30`
+            }}
+          />
+          {subCauses.map((subCause, i) => (
+            <div key={subCause.id} className="flex items-start space-x-2 pl-8">
+              <div 
+                className="w-4 h-0.5 bg-gray-300 mt-3"
+                style={{ backgroundColor: `${branchColor}50` }}
+              />
+              <CauseItem
+                cause={subCause}
+                branchId={branchId}
+                branchColor={branchColor}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onAddSubCause={onAddSubCause}
+                isEditing={false}
+                setEditing={setEditing}
+                position={position}
+                allCauses={allCauses}
+                index={i}
+              />
+            </div>
           ))}
         </div>
       )}
