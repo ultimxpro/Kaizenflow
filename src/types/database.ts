@@ -38,14 +38,15 @@ export interface ProjectMember {
 
 export interface A3Module {
   id: string;
-  project: string; // Project ID
+  project: string;
   quadrant: 'PLAN' | 'DO' | 'CHECK' | 'ACT';
-  toolType: '5Pourquoi' | 'Image' | '4M' | 'OPL' | '5S' | 'VSM' | 'PlanActions' | 'Croquis' | 'Iframe';
+  toolType: '5Pourquoi' | 'Image' | '4M' | 'OPL' | '5S' | 'VSM' | 'PlanActions' | 'Croquis' | 'Iframe' | 'Indicateurs'; // Ajout d'Indicateurs
   content: any;
   position: number;
   titre?: string;
   dateEcheance?: string;
 }
+
 
 export interface ModuleAssignee {
   id: string;
