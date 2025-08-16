@@ -39,14 +39,14 @@ interface Indicator {
   frequency: 'daily' | 'weekly' | 'monthly';
   dataPoints: DataPoint[];
   controlLimits?: ControlLimits;
-  linkedActions: string[];
+  linkedActions: string[]; // IDs des actions liées
   status: 'active' | 'completed' | 'paused';
   createdAt: Date;
   updatedAt: Date;
   color: string;
   showTrend: boolean;
   showAverage: boolean;
-  targetImprovement?: number;
+  targetImprovement?: number; // % d'amélioration visé
 }
 
 interface IndicatorsContent {
@@ -54,12 +54,13 @@ interface IndicatorsContent {
   selectedIndicatorId: string | null;
 }
 
+// Configuration des couleurs
 const CHART_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
   '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
 ];
 
-// Composant Tooltip personnalisé
+// Composant Tooltip personnalisé pour éviter les erreurs
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload || !payload.length) return null;
   
@@ -81,7 +82,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void }> = ({ module, onClose }) => {
-  const { updateA3Module, a3Modules } = useDatabase();
+  const { updateA3Module, actions, a3Modules } = useDatabase();
   const [showHelp, setShowHelp] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editingIndicator, setEditingIndicator] = useState<Indicator | null>(null);
@@ -89,12 +90,14 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
   const [viewMode, setViewMode] = useState<'grid' | 'detail'>('grid');
   const [selectedIndicatorForData, setSelectedIndicatorForData] = useState<string | null>(null);
   
+  // État pour l'entrée de données
   const [newDataPoint, setNewDataPoint] = useState({
     date: new Date().toISOString().split('T')[0],
     value: '',
     comment: ''
   });
 
+  // Initialisation des données
   const initializeContent = (): IndicatorsContent => {
     if (module.content?.indicators) {
       return module.content as IndicatorsContent;
@@ -108,6 +111,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
   const [content, setContent] = useState<IndicatorsContent>(initializeContent());
   const selectedIndicator = content.indicators.find(i => i.id === content.selectedIndicatorId);
 
+  // Récupérer les actions du module Plan d'action
   const availableActions = useMemo(() => {
     const actionModule = a3Modules.find(m => 
       m.projectId === module.projectId && 
@@ -120,11 +124,13 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     return [];
   }, [a3Modules, module.projectId]);
 
+  // Sauvegarder les modifications
   const saveContent = async (newContent: IndicatorsContent) => {
     setContent(newContent);
     await updateA3Module(module.id, { content: newContent });
   };
 
+  // Ajouter un nouvel indicateur
   const addIndicator = () => {
     const newIndicator: Indicator = {
       id: `ind-${Date.now()}`,
@@ -146,6 +152,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     setEditingIndicator(newIndicator);
   };
 
+  // Sauvegarder un indicateur
   const saveIndicator = (indicator: Indicator) => {
     const updatedIndicators = editingIndicator && 
       content.indicators.find(i => i.id === editingIndicator.id)
@@ -160,6 +167,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     setEditingIndicator(null);
   };
 
+  // Supprimer un indicateur
   const deleteIndicator = (id: string) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet indicateur ?')) {
       saveContent({
@@ -170,6 +178,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     }
   };
 
+  // Ajouter un point de données
   const addDataPoint = () => {
     if (!selectedIndicatorForData || !newDataPoint.value) return;
     
@@ -183,6 +192,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
       comment: newDataPoint.comment || undefined
     };
     
+    // Vérifier si hors contrôle (SPC)
     if (indicator.controlLimits) {
       const { upperControl, lowerControl } = indicator.controlLimits;
       if (dataPoint.value > upperControl || dataPoint.value < lowerControl) {
@@ -205,6 +215,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
       )
     });
     
+    // Réinitialiser le formulaire
     setNewDataPoint({
       date: new Date().toISOString().split('T')[0],
       value: '',
@@ -215,6 +226,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     setSelectedIndicatorForData(null);
   };
 
+  // Calculer les statistiques
   const calculateStats = (indicator: Indicator) => {
     if (indicator.dataPoints.length === 0) return null;
     
@@ -224,6 +236,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     const min = Math.min(...values);
     const max = Math.max(...values);
     
+    // Calcul de la tendance
     let trend = 0;
     if (values.length >= 2) {
       const firstHalf = values.slice(0, Math.floor(values.length / 2));
@@ -236,6 +249,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     return { avg, min, max, trend, last: values[values.length - 1] };
   };
 
+  // Préparer les données pour les graphiques
   const prepareChartData = (indicator: Indicator) => {
     return indicator.dataPoints.map(dp => ({
       date: new Date(dp.date).toLocaleDateString('fr-FR'),
@@ -250,6 +264,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     }));
   };
 
+  // Render Chart
   const renderChart = (indicator: Indicator) => {
     const data = prepareChartData(indicator);
     const stats = calculateStats(indicator);
@@ -258,97 +273,31 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
       return (
         <div className="h-64 flex items-center justify-center text-gray-400">
           <div className="text-center">
-            <BarChart3 className="w-12 h-12 mx-auto mb-2" />
-            <p>Aucune donnée disponible</p>
-            <button
-              onClick={() => {
-                setSelectedIndicatorForData(indicator.id);
-                setShowDataEntry(true);
-              }}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-700"
-            >
-              Ajouter des données
-            </button>
+          <Plus className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+          <p className="text-gray-600 font-medium">Ajouter un indicateur</p>
+          <p className="text-sm text-gray-500 mt-1">Cliquez pour créer un nouvel indicateur</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Vue détaillée d'un indicateur
+  const DetailView = () => {
+    if (!selectedIndicator) {
+      return (
+        <div className="flex items-center justify-center h-96 text-gray-400">
+          <div className="text-center">
+            <Eye className="w-12 h-12 mx-auto mb-2" />
+            <p>Sélectionnez un indicateur pour voir les détails</p>
           </div>
         </div>
       );
     }
     
-    return (
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis />
-          <RechartsTooltip content={<CustomTooltip />} />
-          <Legend />
-          
-          {indicator.type === 'bar' && (
-            <Bar dataKey="value" fill={indicator.color} name={indicator.name} />
-          )}
-          
-          {indicator.type === 'area' && (
-            <Area 
-              type="monotone" 
-              dataKey="value" 
-              fill={indicator.color} 
-              stroke={indicator.color} 
-              name={indicator.name}
-              fillOpacity={0.6}
-            />
-          )}
-          
-          {(indicator.type === 'line' || indicator.type === 'spc') && (
-            <Line 
-              type="monotone" 
-              dataKey="value" 
-              stroke={indicator.color} 
-              name={indicator.name}
-              strokeWidth={2}
-              dot={{ fill: indicator.color }}
-            />
-          )}
-          
-          {indicator.type === 'spc' && indicator.controlLimits && (
-            <>
-              <ReferenceLine 
-                y={indicator.controlLimits.target} 
-                stroke="#10B981" 
-                strokeDasharray="5 5" 
-                label="Cible"
-              />
-              <ReferenceLine 
-                y={indicator.controlLimits.upperControl} 
-                stroke="#EF4444" 
-                strokeDasharray="3 3" 
-                label="UCL"
-              />
-              <ReferenceLine 
-                y={indicator.controlLimits.lowerControl} 
-                stroke="#EF4444" 
-                strokeDasharray="3 3" 
-                label="LCL"
-              />
-            </>
-          )}
-          
-          {indicator.showAverage && stats && (
-            <ReferenceLine 
-              y={stats.avg} 
-              stroke="#6B7280" 
-              strokeDasharray="4 4" 
-              label={`Moy: ${stats.avg.toFixed(2)}`}
-            />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
+    const stats = calculateStats(selectedIndicator);
+    const linkedActionDetails = availableActions.filter((a: any) => 
+      selectedIndicator.linkedActions.includes(a.id)
     );
-  };
-
-  const IndicatorEditModal = () => {
-    if (!editingIndicator) return null;
-    
-    const [formData, setFormData] = useState(editingIndicator);
     
     return (
       <div className="bg-white rounded-lg">
@@ -669,7 +618,102 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
       )}
     </div>
   );
-};="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+};
+            <BarChart3 className="w-12 h-12 mx-auto mb-2" />
+            <p>Aucune donnée disponible</p>
+            <button
+              onClick={() => {
+                setSelectedIndicatorForData(indicator.id);
+                setShowDataEntry(true);
+              }}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+            >
+              Ajouter des données
+            </button>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" />
+          <YAxis />
+          <RechartsTooltip content={<CustomTooltip />} />
+          <Legend />
+          
+          {indicator.type === 'bar' && (
+            <Bar dataKey="value" fill={indicator.color} name={indicator.name} />
+          )}
+          
+          {indicator.type === 'area' && (
+            <Area 
+              type="monotone" 
+              dataKey="value" 
+              fill={indicator.color} 
+              stroke={indicator.color} 
+              name={indicator.name}
+              fillOpacity={0.6}
+            />
+          )}
+          
+          {(indicator.type === 'line' || indicator.type === 'spc') && (
+            <Line 
+              type="monotone" 
+              dataKey="value" 
+              stroke={indicator.color} 
+              name={indicator.name}
+              strokeWidth={2}
+              dot={{ fill: indicator.color }}
+            />
+          )}
+          
+          {indicator.type === 'spc' && indicator.controlLimits && (
+            <>
+              <ReferenceLine 
+                y={indicator.controlLimits.target} 
+                stroke="#10B981" 
+                strokeDasharray="5 5" 
+                label="Cible"
+              />
+              <ReferenceLine 
+                y={indicator.controlLimits.upperControl} 
+                stroke="#EF4444" 
+                strokeDasharray="3 3" 
+                label="UCL"
+              />
+              <ReferenceLine 
+                y={indicator.controlLimits.lowerControl} 
+                stroke="#EF4444" 
+                strokeDasharray="3 3" 
+                label="LCL"
+              />
+            </>
+          )}
+          
+          {indicator.showAverage && stats && (
+            <ReferenceLine 
+              y={stats.avg} 
+              stroke="#6B7280" 
+              strokeDasharray="4 4" 
+              label={`Moy: ${stats.avg.toFixed(2)}`}
+            />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+    );
+  };
+
+  // Modal d'édition d'indicateur
+  const IndicatorEditModal = () => {
+    if (!editingIndicator) return null;
+    
+    const [formData, setFormData] = useState(editingIndicator);
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-4">
@@ -778,9 +822,8 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
                         onChange={(e) => setFormData({
                           ...formData,
                           controlLimits: {
-                            target: parseFloat(e.target.value) || 0,
-                            upperControl: formData.controlLimits?.upperControl || 0,
-                            lowerControl: formData.controlLimits?.lowerControl || 0
+                            ...formData.controlLimits!,
+                            target: parseFloat(e.target.value)
                           }
                         })}
                         className="w-full border rounded px-2 py-1"
@@ -794,9 +837,8 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
                         onChange={(e) => setFormData({
                           ...formData,
                           controlLimits: {
-                            target: formData.controlLimits?.target || 0,
-                            upperControl: parseFloat(e.target.value) || 0,
-                            lowerControl: formData.controlLimits?.lowerControl || 0
+                            ...formData.controlLimits!,
+                            upperControl: parseFloat(e.target.value)
                           }
                         })}
                         className="w-full border rounded px-2 py-1"
@@ -810,9 +852,8 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
                         onChange={(e) => setFormData({
                           ...formData,
                           controlLimits: {
-                            target: formData.controlLimits?.target || 0,
-                            upperControl: formData.controlLimits?.upperControl || 0,
-                            lowerControl: parseFloat(e.target.value) || 0
+                            ...formData.controlLimits!,
+                            lowerControl: parseFloat(e.target.value)
                           }
                         })}
                         className="w-full border rounded px-2 py-1"
@@ -904,6 +945,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     );
   };
 
+  // Modal d'entrée de données
   const DataEntryModal = () => {
     if (!showDataEntry || !selectedIndicatorForData) return null;
     
@@ -987,6 +1029,7 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
     );
   };
 
+  // Vue grille des indicateurs
   const GridView = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {content.indicators.map((indicator) => {
@@ -1077,30 +1120,3 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
         className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center min-h-[400px] cursor-pointer hover:bg-gray-100 transition-colors"
       >
         <div className="text-center">
-          <Plus className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-600 font-medium">Ajouter un indicateur</p>
-          <p className="text-sm text-gray-500 mt-1">Cliquez pour créer un nouvel indicateur</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const DetailView = () => {
-    if (!selectedIndicator) {
-      return (
-        <div className="flex items-center justify-center h-96 text-gray-400">
-          <div className="text-center">
-            <Eye className="w-12 h-12 mx-auto mb-2" />
-            <p>Sélectionnez un indicateur pour voir les détails</p>
-          </div>
-        </div>
-      );
-    }
-    
-    const stats = calculateStats(selectedIndicator);
-    const linkedActionDetails = availableActions.filter((a: any) => 
-      selectedIndicator.linkedActions.includes(a.id)
-    );
-    
-    return (
-      <div className
