@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, HelpCircle, MessageSquareQuote as MessageSquareQuestion, Image, GitBranch, BookOpen, CheckSquare, Workflow, Monitor, PenTool } from 'lucide-react';
+import { X, HelpCircle, MessageSquareQuote as MessageSquareQuestion, Image, GitBranch, BookOpen, CheckSquare, Workflow, Monitor, PenTool, Activity } from 'lucide-react';
 
 interface ModuleSelectionModalProps {
   quadrant: string;
@@ -9,7 +9,6 @@ interface ModuleSelectionModalProps {
 }
 
 const toolsConfig = {
-  // MODIFICATION ICI : Le bloc pour '5W1H' a été supprimé
   '5Pourquoi': {
     name: '5 Pourquoi',
     icon: <MessageSquareQuestion className="w-6 h-6" />,
@@ -57,6 +56,12 @@ const toolsConfig = {
     icon: <Monitor className="w-6 h-6" />,
     description: 'Intégration web (Power BI, etc.)',
     color: 'bg-gray-500'
+  },
+  'Indicateurs': {
+    name: 'Indicateurs',
+    icon: <Activity className="w-6 h-6" />,
+    description: 'Suivi et vérification des résultats',
+    color: 'bg-cyan-500'
   }
 };
 
