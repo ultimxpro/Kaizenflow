@@ -10,6 +10,7 @@ import { VSMEditor } from './editors/VSMEditor';
 import { IframeEditor } from './editors/IframeEditor';
 import { CroquisEditor } from './editors/CroquisEditor';
 import { PlanActionsEditor } from './editors/PlanActionsEditor';
+import { IndicatorsEditor } from './editors/IndicatorsEditor';
 
 interface ModuleEditModalProps {
   module: A3Module;
