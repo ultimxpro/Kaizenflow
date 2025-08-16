@@ -273,13 +273,21 @@ export const IndicatorsEditor: React.FC<{ module: A3Module; onClose: () => void 
       return (
         <div className="h-64 flex items-center justify-center text-gray-400">
           <div className="text-center">
-          <Plus className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-600 font-medium">Ajouter un indicateur</p>
-          <p className="text-sm text-gray-500 mt-1">Cliquez pour créer un nouvel indicateur</p>
+            <BarChart3 className="w-12 h-12 mx-auto mb-2" />
+            <p>Aucune donnée disponible</p>
+            <button
+              onClick={() => {
+                setSelectedIndicatorForData(indicator.id);
+                setShowDataEntry(true);
+              }}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+            >
+              Ajouter des données
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
-  );
+      );
+    }
 
   // Vue détaillée d'un indicateur
   const DetailView = () => {
